@@ -19,27 +19,109 @@ app.use("/*", cors());
 
 // JWT Middleware
 app.use("/api/*", async (c, next) => {
-  // Allow public access to login
-  if (c.req.path === "/api/auth/login") {
+  const path = c.req.path;
+
+  // 1. Public endpoints
+  if (
+    path === "/api/auth/login" ||
+    path === "/api/auth/admin-login" ||
+    (c.req.method === "GET" && path.startsWith("/api/servers")) ||
+    (c.req.method === "GET" && path.match(/^\/api\/games\/.*\/ranges$/))
+  ) {
     await next();
     return;
   }
 
-  // Allow public read access (GET), EXCEPT for VPN routes which contain sensitive user data
-  if (c.req.method === "GET" && !c.req.path.startsWith("/api/vpn/")) {
-    await next();
-    return;
-  }
-
-  // Protect all other API routes (POST, PUT, DELETE, and GET /api/vpn/*)
+  // 2. Authentication required for remaining endpoints
   const jwtMiddleware = jwt({
     secret: process.env.JWT_SECRET || "default_dev_secret",
     alg: "HS256",
   });
+
   return jwtMiddleware(c, next);
 });
 
+// Admin Authorization Middleware
+app.use("/api/*", async (c, next) => {
+  const path = c.req.path;
+
+  // Skip public endpoints
+  if (
+    path === "/api/auth/login" ||
+    path === "/api/auth/admin-login" ||
+    (c.req.method === "GET" && path.startsWith("/api/servers")) ||
+    (c.req.method === "GET" && path.match(/^\/api\/games\/.*\/ranges$/))
+  ) {
+    await next();
+    return;
+  }
+
+  const payload = c.get("jwtPayload");
+  const isAdmin = payload?.role === "admin";
+
+  // 3. Authorization for Admin endpoints
+  const isAdminRoute =
+    path.startsWith("/api/users") ||
+    path.startsWith("/api/stats") ||
+    (c.req.method !== "GET" && path.startsWith("/api/servers")) ||
+    (c.req.method !== "GET" && path.match(/^\/api\/games\/.*\/ranges$/));
+
+  if (isAdminRoute && !isAdmin) {
+    return c.json({ error: "Forbidden: Admin access required" }, 403);
+  }
+
+  await next();
+});
+
+// === VPN Routes ===
+app.route("/api/vpn", vpn);
+
 // === Auth ===
+
+app.post("/api/auth/admin-login", async (c) => {
+  try {
+    const { username, password } = await c.req.json<{
+      username: string;
+      password: string;
+    }>();
+
+    if (!username || !password) {
+      return c.json({ error: "Username and password required" }, 400);
+    }
+
+    // Fetch user from DB (admin_users table)
+    const { data: user, error } = await supabase
+      .from("admin_users")
+      .select("*")
+      .eq("username", username)
+      .single();
+
+    if (error || !user) {
+      return c.json({ error: "Invalid credentials" }, 401);
+    }
+
+    // Verify password
+    const valid = await comparePassword(password, user.password_hash);
+    if (!valid) {
+      return c.json({ error: "Invalid credentials" }, 401);
+    }
+
+    // Generate Admin Token
+    const payload = {
+      sub: user.id,
+      username: user.username,
+      role: "admin",
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
+    };
+    const secret = process.env.JWT_SECRET || "default_dev_secret";
+    const token = await sign(payload, secret);
+
+    return c.json({ token, username: user.username });
+  } catch (e) {
+    console.error("Admin login error:", e);
+    return c.json({ error: "Login failed" }, 500);
+  }
+});
 
 app.post("/api/auth/login", async (c) => {
   try {

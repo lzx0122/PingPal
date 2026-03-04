@@ -40,7 +40,13 @@ export function useServers() {
     loading.value = true;
     error.value = null;
     try {
-      const response = await fetch(`${API_BASE}/servers`);
+      const response = await fetch(`${API_BASE}/servers`, {
+        headers: getAuthHeaders(),
+      });
+      if (response.status === 401) {
+        logout();
+        throw new Error("Session expired. Please login again.");
+      }
       if (!response.ok) throw new Error("Failed to fetch servers");
       servers.value = await response.json();
     } catch (e) {

@@ -43,7 +43,6 @@ onMounted(() => {
   if (stored) {
     try {
       vpnConfig.value = JSON.parse(stored);
-      console.log("Loaded VPN config:", vpnConfig.value);
     } catch (e) {
       console.error("Failed to parse VPN config", e);
       localStorage.removeItem("vpn_config");
@@ -81,14 +80,7 @@ const goToHome = () => {
   selectedGame.value = null;
 };
 
-const handleReset = () => {
-  vpnConfig.value = null;
-  localStorage.removeItem("vpn_config");
-  currentView.value = "register";
-};
-
 const handleProfileRegistered = (config: any) => {
-  console.log("Profile registered:", config);
   vpnConfig.value = config;
   localStorage.setItem("vpn_config", JSON.stringify(config));
   currentView.value = "home";
@@ -156,8 +148,6 @@ const handleConnect = async () => {
       vpnConfig.value.profileId,
       selectedServer.value.endpoint.split(":")[0], // Extract IP from endpoint
     );
-
-    console.log("Server config:", serverConfig);
 
     // Generate WireGuard config
     const configContent = getWgConfig(serverConfig);
@@ -268,15 +258,6 @@ const handleDisconnect = async () => {
           >
             <ServerIcon class="w-4 h-4" />
             設備管理
-          </Button>
-
-          <Button
-            variant="ghost"
-            class="w-full justify-start gap-3 h-10 font-medium text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900/50"
-            @click="handleReset"
-          >
-            <ServerIcon class="w-4 h-4" />
-            重設 VPN 設定
           </Button>
         </nav>
 

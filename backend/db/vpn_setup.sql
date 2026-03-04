@@ -38,33 +38,9 @@ CREATE INDEX IF NOT EXISTS idx_vpn_allocations_server_ip ON public.vpn_server_al
 ALTER PUBLICATION supabase_realtime ADD TABLE vpn_profiles;
 ALTER PUBLICATION supabase_realtime ADD TABLE vpn_server_allocations;
 
--- 5. Enable RLS
-ALTER TABLE public.vpn_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.vpn_server_allocations ENABLE ROW LEVEL SECURITY;
-
--- 6. RLS Policies for vpn_profiles
-CREATE POLICY "Users can view their own profiles" 
-ON public.vpn_profiles FOR SELECT 
-USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own profiles" 
-ON public.vpn_profiles FOR INSERT 
-WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own profiles" 
-ON public.vpn_profiles FOR DELETE 
-USING (auth.uid() = user_id);
-
--- 7. RLS Policies for vpn_server_allocations
-CREATE POLICY "Users can view their own allocations" 
-ON public.vpn_server_allocations FOR SELECT 
-USING (
-    EXISTS (
-        SELECT 1 FROM vpn_profiles 
-        WHERE vpn_profiles.id = vpn_server_allocations.profile_id 
-        AND vpn_profiles.user_id = auth.uid()
-    )
-);
+-- 5. Enable RLS (Disabled for now since backend handles auth)
+-- 6. RLS Policies for vpn_profiles (Disabled - backend handles auth with JWT)
+-- 7. RLS Policies for vpn_server_allocations (Disabled - backend handles auth)
 
 -- 8. RPC Function: Register Device (without server)
 CREATE OR REPLACE FUNCTION register_vpn_device(

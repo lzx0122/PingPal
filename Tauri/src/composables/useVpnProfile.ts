@@ -57,6 +57,10 @@ export function useVpnProfile() {
       const response = await fetch(`${API_URL}/api/servers`, {
         headers: getAuthHeaders(),
       });
+      if (response.status === 401) {
+        useAuth().logout();
+        throw new Error("Session expired. Please login again.");
+      }
       if (!response.ok) throw new Error("Failed to fetch servers");
       servers.value = await response.json();
     } catch (e: any) {
@@ -74,6 +78,10 @@ export function useVpnProfile() {
       const response = await fetch(`${API_URL}/api/vpn/profiles`, {
         headers: getAuthHeaders(),
       });
+      if (response.status === 401) {
+        useAuth().logout();
+        throw new Error("Session expired. Please login again.");
+      }
       if (!response.ok) throw new Error("Failed to fetch profiles");
       profiles.value = await response.json();
     } catch (e: any) {
@@ -104,8 +112,14 @@ export function useVpnProfile() {
         }),
       });
 
+      if (response.status === 401) {
+        useAuth().logout();
+        throw new Error("Session expired. Please login again.");
+      }
+
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
+        console.error("Registration error response:", errData);
         throw new Error(errData.error || "Registration failed");
       }
 
@@ -139,6 +153,11 @@ export function useVpnProfile() {
           serverIp,
         }),
       });
+
+      if (response.status === 401) {
+        useAuth().logout();
+        throw new Error("Session expired. Please login again.");
+      }
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));

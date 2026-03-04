@@ -7,9 +7,10 @@ import { Monitor, Trash2, Loader2, AlertCircle } from "lucide-vue-next";
 interface VpnProfile {
   id: string;
   device_name: string;
-  assigned_ip: string;
+  public_key: string;
   created_at: string;
   user_id: string;
+  is_active: boolean;
 }
 
 const profiles = ref<VpnProfile[]>([]);
@@ -37,6 +38,13 @@ async function fetchProfiles() {
         Authorization: `Bearer ${token}`,
       },
     });
+
+    if (response.status === 401) {
+      import("@/composables/useAuth").then(({ useAuth }) => {
+        useAuth().logout();
+      });
+      throw new Error("Session expired. Please login again.");
+    }
 
     if (!response.ok) {
       throw new Error("Failed to fetch profiles");
@@ -75,6 +83,13 @@ async function deleteProfile(profileId: string) {
         },
       },
     );
+
+    if (response.status === 401) {
+      import("@/composables/useAuth").then(({ useAuth }) => {
+        useAuth().logout();
+      });
+      throw new Error("Session expired. Please login again.");
+    }
 
     if (!response.ok) {
       throw new Error("Failed to delete device");
@@ -151,10 +166,10 @@ function formatDate(dateString: string) {
                 </h3>
                 <div class="space-y-1">
                   <div class="flex items-center gap-2 text-sm">
-                    <span class="text-zinc-500">IP:</span>
-                    <span class="text-zinc-300 font-mono">{{
-                      profile.assigned_ip
-                    }}</span>
+                    <span class="text-zinc-500">Public Key:</span>
+                    <span class="text-zinc-300 font-mono text-xs truncate"
+                      >{{ profile.public_key.substring(0, 32) }}...</span
+                    >
                   </div>
                   <div class="flex items-center gap-2 text-sm">
                     <span class="text-zinc-500">Registered:</span>

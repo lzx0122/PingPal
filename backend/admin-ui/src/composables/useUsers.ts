@@ -17,7 +17,12 @@ export function useUsers() {
     loading.value = true;
     error.value = null;
     try {
-      const response = await fetch(`${API_BASE}/users`);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_BASE}/users`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         throw new Error("Failed to fetch users");
       }

@@ -20,9 +20,11 @@ import VPNRegistration from "@/components/VPNRegistration.vue";
 import DeviceManager from "@/components/DeviceManager.vue";
 import { useAuthStore } from "@/stores/authStore";
 import { useVpnProfile } from "@/composables/useVpnProfile";
+import { useVpnStore } from "@/stores/vpnStore";
 
 const authStore = useAuthStore();
-const { connectToServer } = useVpnProfile();
+const { connectToServer, fetchProfiles, profiles } = useVpnProfile();
+const vpnStore = useVpnStore();
 
 type ViewState = "home" | "details" | "register" | "devices";
 const currentView = ref<ViewState>("home");
@@ -35,6 +37,7 @@ const isLoading = ref(false);
 const currentPing = ref(0);
 
 const vpnConfig = ref<any>(null);
+const localProfileId = ref<string | null>(null);
 
 onMounted(async () => {
   await authStore.loadState();
@@ -42,22 +45,46 @@ onMounted(async () => {
   if (stored) {
     try {
       vpnConfig.value = JSON.parse(stored);
+      localProfileId.value = vpnConfig.value.profileId || null;
     } catch (e) {
       console.error("Failed to parse VPN config", e);
       localStorage.removeItem("vpn_config");
+      vpnConfig.value = null;
+      localProfileId.value = null;
     }
+  }
+  // After login, check if local profileId still exists on server
+  if (authStore.isAuthenticated) {
+    await fetchProfiles();
+    checkProfileBinding();
   }
 });
 
+// Check if local profileId still exists in server device list
+async function checkProfileBinding() {
+  if (!localProfileId.value) return;
+  const exists = profiles.value.some((p) => p.id === localProfileId.value);
+  if (!exists) {
+    // Local profileId was deleted, clear config and go to registration
+    localStorage.removeItem("vpn_config");
+    vpnConfig.value = null;
+    localProfileId.value = null;
+    currentView.value = "register";
+  }
+}
+
 watch(
   [() => authStore.isAuthenticated, vpnConfig],
-  ([isAuth, config]) => {
+  async ([isAuth, config]) => {
     if (isAuth) {
       if (!config) {
         currentView.value = "register";
       } else if (currentView.value === "register") {
         currentView.value = "home";
       }
+      // Check profile binding on every login or config change
+      await fetchProfiles();
+      checkProfileBinding();
     }
   },
   { immediate: true },
@@ -80,6 +107,7 @@ const goToHome = () => {
 const handleProfileRegistered = (config: any) => {
   vpnConfig.value = config;
   localStorage.setItem("vpn_config", JSON.stringify(config));
+  localProfileId.value = config.profileId || null;
   currentView.value = "home";
 };
 

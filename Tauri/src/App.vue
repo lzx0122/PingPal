@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { apiFetch } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,21 +24,18 @@ import { useVpnProfile } from "@/composables/useVpnProfile";
 const authStore = useAuthStore();
 const { connectToServer } = useVpnProfile();
 
-// === State Management ===
 type ViewState = "home" | "details" | "register" | "devices";
 const currentView = ref<ViewState>("home");
 const selectedGame = ref<Game | null>(null);
 const selectedServer = ref<Server | null>(null);
 
-const status = ref("服務已就緒");
+const status = ref("Ready");
 const isConnected = ref(false);
 const isLoading = ref(false);
 const currentPing = ref(0);
 
-// === VPN Config ===
 const vpnConfig = ref<any>(null);
 
-// Load config from storage on mount
 onMounted(async () => {
   await authStore.loadState();
   const stored = localStorage.getItem("vpn_config");
@@ -51,7 +49,6 @@ onMounted(async () => {
   }
 });
 
-// Watch auth and config to determine view
 watch(
   [() => authStore.isAuthenticated, vpnConfig],
   ([isAuth, config]) => {
@@ -66,7 +63,6 @@ watch(
   { immediate: true },
 );
 
-// === Navigation ===
 const goToDetails = (game: Game) => {
   selectedGame.value = game;
   if (game.servers.length > 0) {
@@ -87,16 +83,17 @@ const handleProfileRegistered = (config: any) => {
   currentView.value = "home";
 };
 
-// === Game Ranges ===
 const gameIpRanges = ref<Set<string>>(new Set());
 
 const fetchGameRanges = async (gameId: string) => {
   try {
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    const ranges = (await fetch(`${API_URL}/api/games/${gameId}/ranges`).then(
-      (res) => res.json(),
-    )) as string[];
+    const response = await apiFetch(`/api/games/${gameId}/ranges`);
 
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+
+    const ranges = (await response.json()) as string[];
     gameIpRanges.value.clear();
     ranges.forEach((range) => gameIpRanges.value.add(range));
   } catch (error) {
@@ -104,7 +101,6 @@ const fetchGameRanges = async (gameId: string) => {
   }
 };
 
-// === Config Generation ===
 const getWgConfig = (serverConfig: any) => {
   const allowedIps = Array.from(gameIpRanges.value).join(", ");
 
@@ -142,16 +138,14 @@ const handleConnect = async () => {
   }
 
   isLoading.value = true;
-  status.value = `正在連線...`;
+  status.value = "Connecting...";
 
   try {
-    // Get server config from backend
     const serverConfig = await connectToServer(
       vpnConfig.value.profileId,
-      selectedServer.value.endpoint.split(":")[0], // Extract IP from endpoint
+      selectedServer.value.endpoint.split(":")[0],
     );
 
-    // Generate WireGuard config
     const configContent = getWgConfig(serverConfig);
     const ipv4 = serverConfig.assigned_ip.split("/")[0];
 
@@ -160,12 +154,12 @@ const handleConnect = async () => {
       ipv4Address: ipv4,
     });
 
-    status.value = `已連線 - ${serverConfig.server_endpoint}`;
+    status.value = `Connected - ${serverConfig.server_endpoint}`;
     isConnected.value = true;
     currentPing.value = Math.floor(Math.random() * 10) + 20;
   } catch (error) {
     console.error(error);
-    status.value = "連線失敗: " + error;
+    status.value = "Connection failed: " + error;
   } finally {
     isLoading.value = false;
   }
@@ -173,15 +167,15 @@ const handleConnect = async () => {
 
 const handleDisconnect = async () => {
   isLoading.value = true;
-  status.value = "正在停止加速...";
+  status.value = "Disconnecting...";
 
   try {
     await invoke("disconnect_vpn");
-    status.value = "服務已就緒";
+    status.value = "Ready";
     isConnected.value = false;
     currentPing.value = 0;
   } catch (error) {
-    status.value = "停止失敗: " + error;
+    status.value = "Disconnect failed: " + error;
   } finally {
     isLoading.value = false;
   }
@@ -196,7 +190,10 @@ const handleDisconnect = async () => {
     v-else-if="currentView === 'register'"
     class="h-screen w-full bg-black text-white flex items-center justify-center"
   >
-    <VPNRegistration @profile-registered="handleProfileRegistered" />
+    <VPNRegistration
+      @profile-registered="handleProfileRegistered"
+      @go-to-devices="currentView = 'devices'"
+    />
   </div>
 
   <!-- Main App -->
@@ -245,7 +242,7 @@ const handleDisconnect = async () => {
             @click="goToHome"
           >
             <Gamepad2 class="w-4 h-4" />
-            遊戲庫
+            Game Library
           </Button>
 
           <Button
@@ -259,7 +256,7 @@ const handleDisconnect = async () => {
             @click="currentView = 'devices'"
           >
             <ServerIcon class="w-4 h-4" />
-            設備管理
+            Device Management
           </Button>
         </nav>
 
@@ -270,7 +267,7 @@ const handleDisconnect = async () => {
             @click="authStore.logout()"
           >
             <LogOut class="w-4 h-4" />
-            登出
+            Logout
           </Button>
           <div
             class="flex items-center justify-between text-xs text-zinc-600 font-mono"
@@ -346,7 +343,7 @@ const handleDisconnect = async () => {
               class="flex items-end justify-between mb-8 border-b border-zinc-900 pb-4"
             >
               <h2 class="text-3xl font-bold tracking-tight text-white">
-                遊戲庫
+                Game Library
               </h2>
               <span class="text-sm text-zinc-500"
                 >{{ GAMES.length }} GAMES AVAILABLE</span
@@ -383,6 +380,23 @@ const handleDisconnect = async () => {
 
           <!-- View: Device Management -->
           <div v-else-if="currentView === 'devices'">
+            <!-- Banner: Guide user back to register after freeing up a slot -->
+            <div
+              v-if="!vpnConfig"
+              class="mb-6 p-4 bg-zinc-900 border border-zinc-700 rounded-lg flex items-center justify-between gap-4"
+            >
+              <div class="flex items-center gap-3 text-sm text-zinc-400">
+                <span class="text-amber-400 text-lg"></span>
+                After deleting old device, click the button on the right to complete registration
+              </div>
+              <Button
+                size="sm"
+                class="bg-white text-black hover:bg-zinc-200 font-bold shrink-0"
+                @click="currentView = 'register'"
+              >
+                Go to Register
+              </Button>
+            </div>
             <DeviceManager />
           </div>
 
@@ -467,7 +481,7 @@ const handleDisconnect = async () => {
                       v-else
                       class="w-4 h-4 mr-2 border-2 border-black/30 border-t-black rounded-full animate-spin"
                     ></div>
-                    {{ isLoading ? "正在啟動..." : "立即加速" }}
+                    {{ isLoading ? "Starting..." : "Accelerate Now" }}
                   </Button>
 
                   <Button
@@ -479,7 +493,7 @@ const handleDisconnect = async () => {
                     class="w-full h-14 text-base font-bold bg-zinc-900 border border-zinc-800 hover:bg-red-950 hover:border-red-900 hover:text-red-500 text-zinc-300 transition-all active:scale-[0.98]"
                   >
                     <StopCircle v-if="!isLoading" class="w-4 h-4 mr-2" />
-                    停止加速
+                    Stop Acceleration
                   </Button>
                 </div>
               </div>

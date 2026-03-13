@@ -29,7 +29,7 @@ const loading = ref(false);
 const handleLogin = async () => {
   errorMessage.value = "";
   if (!loginEmail.value || !loginPassword.value) {
-    errorMessage.value = "請輸入使用者名稱和密碼";
+    errorMessage.value = "Please enter username and password";
     return;
   }
 
@@ -40,14 +40,14 @@ const handleLogin = async () => {
       loginPassword.value,
     );
     if (!success) {
-      errorMessage.value = "查無此帳號或密碼錯誤";
+      errorMessage.value = "Incorrect username or password";
       loginPassword.value = "";
     } else {
       emit("login-success"); // Notify parent to change view
     }
   } catch (error: any) {
     console.error("Login error:", error);
-    errorMessage.value = error.message || "登入失敗，請稍後再試。";
+    errorMessage.value = error.message || "Login failed, please try again later.";
   } finally {
     loading.value = false;
   }
@@ -68,7 +68,7 @@ const handleLogin = async () => {
           <Zap class="w-8 h-8 fill-current" />
         </div>
         <h1 class="logo-text">NigPing</h1>
-        <p class="logo-subtitle">遊戲加速器</p>
+        <p class="logo-subtitle">Game Accelerator</p>
       </div>
 
       <!-- Form -->
@@ -77,13 +77,13 @@ const handleLogin = async () => {
         <div class="form-group">
           <label for="username" class="form-label">
             <User class="w-4 h-4" />
-            <span>使用者名稱</span>
+            <span>Username</span>
           </label>
           <input
             id="username"
             v-model="loginEmail"
             type="text"
-            placeholder="輸入使用者名稱"
+            placeholder="Enter username"
             required
             autocomplete="username"
             class="form-input"
@@ -95,13 +95,13 @@ const handleLogin = async () => {
         <div class="form-group">
           <label for="password" class="form-label">
             <Lock class="w-4 h-4" />
-            <span>密碼</span>
+            <span>Password</span>
           </label>
           <input
             id="password"
             v-model="loginPassword"
             type="password"
-            placeholder="輸入密碼"
+            placeholder="Enter password"
             required
             autocomplete="current-password"
             class="form-input"
@@ -118,7 +118,7 @@ const handleLogin = async () => {
         <!-- Submit button -->
         <button type="submit" :disabled="loading" class="btn-submit">
           <div v-if="loading" class="loading-spinner"></div>
-          <span v-else>登入</span>
+          <span v-else>Login</span>
         </button>
       </form>
 

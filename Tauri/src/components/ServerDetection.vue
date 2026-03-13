@@ -22,7 +22,7 @@
           <h3
             class="text-base font-bold text-white tracking-tight leading-none"
           >
-            伺服器偵測
+            Server Detection
           </h3>
         </div>
       </div>
@@ -39,7 +39,7 @@
       >
         <Zap v-if="isMonitoring" class="w-3 h-3 fill-current" />
         <Power v-else class="w-3 h-3" />
-        <span>{{ isMonitoring ? "監控中" : "啟動" }}</span>
+        <span>{{ isMonitoring ? "Monitoring" : "Start" }}</span>
       </button>
     </div>
 
@@ -74,7 +74,7 @@
           class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-zinc-500 px-1"
         >
           <span class="flex items-center gap-1.5"
-            ><Trophy class="w-4 h-4" /> 主要伺服器</span
+            ><Trophy class="w-4 h-4" /> Main Server</span
           >
           <span class="font-mono">{{ primaryServer.protocol }}</span>
         </div>
@@ -116,7 +116,7 @@
               @click="addToRoutes(primaryServer.ip)"
               :disabled="addingRoute === primaryServer.ip"
               class="flex items-center justify-center w-7 h-7 rounded bg-white text-black hover:bg-zinc-200 transition-colors disabled:opacity-50"
-              title="加入路由"
+              title="Add Route"
             >
               <Plus v-if="addingRoute !== primaryServer.ip" class="w-4 h-4" />
               <Loader2 v-else class="w-4 h-4 animate-spin" />
@@ -412,7 +412,7 @@ async function toggleMonitoring() {
 
 async function startMonitoring() {
   isLoading.value = true;
-  statusMessage.value = "啟動中...";
+  statusMessage.value = "Starting...";
   statusType.value = "info";
   history.value = []; // Reset history
 
@@ -422,7 +422,7 @@ async function startMonitoring() {
     });
 
     isMonitoring.value = true;
-    statusMessage.value = "掃描中...";
+    statusMessage.value = "Scanning...";
     statusType.value = "info";
 
     // Start polling for detected servers
@@ -431,7 +431,7 @@ async function startMonitoring() {
     // Also fetch immediately
     await fetchServers();
   } catch (error) {
-    statusMessage.value = `失敗: ${error}`;
+    statusMessage.value = `Failed: ${error}`;
     statusType.value = "error";
     console.error("Failed to start monitoring:", error);
   } finally {
@@ -444,7 +444,7 @@ async function stopMonitoring() {
   try {
     await invoke("stop_monitoring");
     isMonitoring.value = false;
-    statusMessage.value = "已停止";
+    statusMessage.value = "Stopped";
     statusType.value = "info";
 
     if (pollInterval !== null) {

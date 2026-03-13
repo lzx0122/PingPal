@@ -41,13 +41,10 @@ We recommend starting with the vanilla template (HTML, CSS, and JavaScript witho
 
 1. Choose a name and a bundle identifier (unique-id for your app):
    ```
-   ? Project name (tauri-app) ›
-   ? Identifier (com.tauri-app.app) ›
-   ```
+   ? Project name (tauri-app) ??   ? Identifier (com.tauri-app.app) ??   ```
 2. Select a flavor for your frontend. First the language:
    ```
-   ? Choose which language to use for your frontend ›
-   Rust  (cargo)
+   ? Choose which language to use for your frontend ??   Rust  (cargo)
    TypeScript / JavaScript  (pnpm, yarn, npm, bun)
    .NET  (dotnet)
    ```
@@ -56,8 +53,7 @@ We recommend starting with the vanilla template (HTML, CSS, and JavaScript witho
    Options for **TypeScript / JavaScript**:
 
    ```
-   ? Choose your package manager ›
-   pnpm
+   ? Choose your package manager ??   pnpm
    yarn
    npm
    bun
@@ -68,8 +64,7 @@ We recommend starting with the vanilla template (HTML, CSS, and JavaScript witho
    Options for **Rust**:
 
    ```
-   ? Choose your UI template ›
-   Vanilla
+   ? Choose your UI template ??   Vanilla
    Yew
    Leptos
    Sycamore
@@ -78,8 +73,7 @@ We recommend starting with the vanilla template (HTML, CSS, and JavaScript witho
    Options for **TypeScript / JavaScript**:
 
    ```
-   ? Choose your UI template ›
-   Vanilla
+   ? Choose your UI template ??   Vanilla
    Vue
    Svelte
    React
@@ -87,16 +81,14 @@ We recommend starting with the vanilla template (HTML, CSS, and JavaScript witho
    Angular
    Preact
 
-   ? Choose your UI flavor ›
-   TypeScript
+   ? Choose your UI flavor ??   TypeScript
    JavaScript
    ```
 
    Options for **.NET**:
 
    ```
-   ? Choose your UI template ›
-   Blazor  (https://dotnet.microsoft.com/en-us/apps/aspnet/web-apps/blazor/)
+   ? Choose your UI template ??   Blazor  (https://dotnet.microsoft.com/en-us/apps/aspnet/web-apps/blazor/)
    ```
 
 </Steps>
@@ -134,7 +126,7 @@ import CommandTabs from '@components/CommandTabs.astro';
 
 You'll now see a new window open with your app running.
 
-**Congratulations!** You've made your Tauri app! 🚀
+**Congratulations!** You've made your Tauri app! ??
 
 ## Manual Setup (Tauri CLI)
 
@@ -193,12 +185,12 @@ The following example assumes you are creating a new project. If you've already 
         After running the command it will display a prompt asking you for different options:
 
         ```sh frame=none
-        ✔ What is your app name? tauri-app
-        ✔ What should the window title be? tauri-app
-        ✔ Where are your web assets located? ..
-        ✔ What is the url of your dev server? http://localhost:5173
-        ✔ What is your frontend dev command? pnpm run dev
-        ✔ What is your frontend build command? pnpm run build
+        ??What is your app name? tauri-app
+        ??What should the window title be? tauri-app
+        ??Where are your web assets located? ..
+        ??What is the url of your dev server? http://localhost:5173
+        ??What is your frontend dev command? pnpm run dev
+        ??What is your frontend build command? pnpm run build
         ```
 
         This will create a `src-tauri` directory in your project with the necessary Tauri configuration files.
@@ -218,7 +210,7 @@ The following example assumes you are creating a new project. If you've already 
 
 </Steps>
 
-**Congratulations!** You've created a new Tauri project using the Tauri CLI! 🚀
+**Congratulations!** You've created a new Tauri project using the Tauri CLI! ??
 
 ## Next Steps
 
@@ -480,7 +472,7 @@ Building MSI packages on Windows requires the VBSCRIPT optional feature to be en
 
 If you encounter errors like `failed to run light.exe` when building MSI packages, you may need to enable the VBSCRIPT feature:
 
-1. Open **Settings** → **Apps** → **Optional features** → **More Windows features**
+1. Open **Settings** ??**Apps** ??**Optional features** ??**More Windows features**
 2. Locate **VBSCRIPT** in the list and ensure it's checked
 3. Click **Next** and restart your computer if prompted
 
@@ -698,24 +690,24 @@ and typically the setup looks something like this:
 
 ```
 .
-├── package.json
-├── index.html
-├── src/
-│   ├── main.js
-├── src-tauri/
-│   ├── Cargo.toml
-│   ├── Cargo.lock
-│   ├── build.rs
-│   ├── tauri.conf.json
-│   ├── src/
-│   │   ├── main.rs
-│   │   └── lib.rs
-│   ├── icons/
-│   │   ├── icon.png
-│   │   ├── icon.icns
-│   │   └── icon.ico
-│   └── capabilities/
-│       └── default.json
+??? package.json
+??? index.html
+??? src/
+??  ??? main.js
+??? src-tauri/
+??  ??? Cargo.toml
+??  ??? Cargo.lock
+??  ??? build.rs
+??  ??? tauri.conf.json
+??  ??? src/
+??  ??  ??? main.rs
+??  ??  ??? lib.rs
+??  ??? icons/
+??  ??  ??? icon.png
+??  ??  ??? icon.icns
+??  ??  ??? icon.ico
+??  ??? capabilities/
+??      ??? default.json
 ```
 
 In this case, the JavaScript project is at the top level, and the Rust project is inside `src-tauri/`,
@@ -3804,15 +3796,15 @@ Simplified example of an example Tauri application directory structure:
 
 ```sh
 tauri-app
-├── index.html
-├── package.json
-├── src/
-├── src-tauri/
-│   ├── Cargo.toml
-│   ├── capabilities/
-│   │  └── <identifier>.json/toml
-│   ├── src/
-│   ├── tauri.conf.json
+??? index.html
+??? package.json
+??? src/
+??? src-tauri/
+??  ??? Cargo.toml
+??  ??? capabilities/
+??  ?? ??? <identifier>.json/toml
+??  ??? src/
+??  ??? tauri.conf.json
 ```
 
 Everything can be inlined into the `tauri.conf.json` but even a
@@ -3992,24 +3984,24 @@ import SinceVersion from '../../../components/SinceVersion.astro';
 A header defined in the configuration gets sent along the responses to the webview.
 This doesn't include IPC messages and error responses.
 To be more specific, every response sent via the `get_response` function in
-<a href="https://github.com/tauri-apps/tauri/blob/8e8312bb8201ccc609e4bbc1a990bdc314daa00f/crates/tauri/src/protocol/tauri.rs#L103" target="_blank">crates/tauri/src/protocol/tauri.rs ↗</a>
+<a href="https://github.com/tauri-apps/tauri/blob/8e8312bb8201ccc609e4bbc1a990bdc314daa00f/crates/tauri/src/protocol/tauri.rs#L103" target="_blank">crates/tauri/src/protocol/tauri.rs ??/a>
 will include those headers.
 
 ### Header Names
 
 The header names are limited to:
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials" target="_blank">Access-Control-Allow-Credentials ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Headers" target="_blank">Access-Control-Allow-Headers ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Methods" target="_blank">Access-Control-Allow-Methods ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Expose-Headers" target="_blank">Access-Control-Expose-Headers ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Max-Age" target="_blank">Access-Control-Max-Age ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy" target="_blank">Cross-Origin-Embedder-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy" target="_blank">Cross-Origin-Opener-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy" target="_blank">Cross-Origin-Resource-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy" target="_blank">Permissions-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Service-Worker-Allowed" target="_blank">Service-Worker-Allowed ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Timing-Allow-Origin" target="_blank">Timing-Allow-Origin ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options" target="_blank">X-Content-Type-Options ↗</a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials" target="_blank">Access-Control-Allow-Credentials ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Headers" target="_blank">Access-Control-Allow-Headers ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Methods" target="_blank">Access-Control-Allow-Methods ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Expose-Headers" target="_blank">Access-Control-Expose-Headers ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Max-Age" target="_blank">Access-Control-Max-Age ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy" target="_blank">Cross-Origin-Embedder-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy" target="_blank">Cross-Origin-Opener-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy" target="_blank">Cross-Origin-Resource-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy" target="_blank">Permissions-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Service-Worker-Allowed" target="_blank">Service-Worker-Allowed ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Timing-Allow-Origin" target="_blank">Timing-Allow-Origin ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options" target="_blank">X-Content-Type-Options ??/a>
 - Tauri-Custom-Header
 
 :::note
@@ -4071,8 +4063,8 @@ For Tests: Remember to set `Access-Control-Expose-Headers` accordingly.
 :::
 
 In this example `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` are set to
-allow for the use of <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer" target="_blank">`SharedArrayBuffer ↗`</a>.
-`Timing-Allow-Origin` grants scripts loaded from the listed websites to access detailed network timing data via the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing" target="_blank">Resource Timing API ↗</a>.
+allow for the use of <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer" target="_blank">`SharedArrayBuffer ?</a>.
+`Timing-Allow-Origin` grants scripts loaded from the listed websites to access detailed network timing data via the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing" target="_blank">Resource Timing API ??/a>.
 
 For the helloworld example, this config results in:
 
@@ -4160,7 +4152,7 @@ export default defineNuxtConfig({
 });
 ```
 **Next.js** doesn't rely on **Vite**, so the approach is different.
-Read more about it <a href="https://nextjs.org/docs/pages/api-reference/next-config-js/headers" target="_blank">here ↗</a>.
+Read more about it <a href="https://nextjs.org/docs/pages/api-reference/next-config-js/headers" target="_blank">here ??/a>.
 The headers are defined in `next.config.js`.
 ```javascript title=next.config.js
 module.exports = {
@@ -4608,14 +4600,14 @@ Simplified example of an example Tauri **plugin** directory structure:
 
 ```sh
 tauri-plugin
-├── README.md
-├── src
-│  └── lib.rs
-├── build.rs
-├── Cargo.toml
-├── permissions
-│  └── <identifier>.json/toml
-│  └── default.json/toml
+??? README.md
+??? src
+?? ??? lib.rs
+??? build.rs
+??? Cargo.toml
+??? permissions
+?? ??? <identifier>.json/toml
+?? ??? default.json/toml
 ```
 
 The default permission is handled in a special way,
@@ -4627,17 +4619,17 @@ For **application** developers the structure is similar:
 
 ```sh
 tauri-app
-├── index.html
-├── package.json
-├── src
-├── src-tauri
-│   ├── Cargo.toml
-│   ├── permissions
-│      └── <identifier>.toml
-|   ├── capabilities
-│      └── <identifier>.json/.toml
-│   ├── src
-│   ├── tauri.conf.json
+??? index.html
+??? package.json
+??? src
+??? src-tauri
+??  ??? Cargo.toml
+??  ??? permissions
+??     ??? <identifier>.toml
+|   ??? capabilities
+??     ??? <identifier>.json/.toml
+??  ??? src
+??  ??? tauri.conf.json
 ```
 
 :::note
@@ -6692,13 +6684,13 @@ In this example we want to bundle additional i18n json files like this:
 
 ```
 .
-├── src-tauri/
-│   ├── tauri.conf.json
-│   ├── lang/
-│   │   ├── de.json
-│   │   └── en.json
-│   └── ...
-└── ...
+??? src-tauri/
+??  ??? tauri.conf.json
+??  ??? lang/
+??  ??  ??? de.json
+??  ??  ??? en.json
+??  ??? ...
+??? ...
 ```
 
 ```json title=tauri.conf.json
@@ -7611,8 +7603,8 @@ end
 Lastly, you can change the default way the breakpoints are displayed in the editor:
 
 ```lua title="init.lua"
-vim.fn.sign_define('DapBreakpoint',{ text ='🟥', texthl ='', linehl ='', numhl =''})
-vim.fn.sign_define('DapStopped',{ text ='▶️', texthl ='', linehl ='', numhl =''})
+vim.fn.sign_define('DapBreakpoint',{ text ='?', texthl ='', linehl ='', numhl =''})
+vim.fn.sign_define('DapStopped',{ text ='??', texthl ='', linehl ='', numhl =''})
 ```
 
 ### Starting the dev server
@@ -8472,20 +8464,20 @@ This will initialize the plugin at the directory `tauri-plugin-[name]` and, depe
 
 ```
 . tauri-plugin-[name]/
-├── src/                - Rust code
-│ ├── commands.rs       - Defines the commands the webview can use
-| ├── desktop.rs        - Desktop implementation
-| ├── error.rs          - Default error type to use in returned results
-│ ├── lib.rs            - Re-exports appropriate implementation, setup state...
-│ ├── mobile.rs         - Mobile implementation
-│ └── models.rs         - Shared structs
-├── permissions/        - This will host (generated) permission files for commands
-├── android             - Android library
-├── ios                 - Swift package
-├── guest-js            - Source code of the JavaScript API bindings
-├── dist-js             - Transpiled assets from guest-js
-├── Cargo.toml          - Cargo crate metadata
-└── package.json        - NPM package metadata
+??? src/                - Rust code
+????? commands.rs       - Defines the commands the webview can use
+| ??? desktop.rs        - Desktop implementation
+| ??? error.rs          - Default error type to use in returned results
+????? lib.rs            - Re-exports appropriate implementation, setup state...
+????? mobile.rs         - Mobile implementation
+????? models.rs         - Shared structs
+??? permissions/        - This will host (generated) permission files for commands
+??? android             - Android library
+??? ios                 - Swift package
+??? guest-js            - Source code of the JavaScript API bindings
+??? dist-js             - Transpiled assets from guest-js
+??? Cargo.toml          - Cargo crate metadata
+??? package.json        - NPM package metadata
 ```
 
 If you have an existing plugin and would like to add Android or iOS capabilities to it, you can use `plugin android add` and `plugin ios add` to bootstrap the mobile library projects and guide you through the changes needed.
@@ -9649,15 +9641,15 @@ Now that we are all set up with our dependencies and our test script, let's run 
 We should see output the following output:
 
 ```text
-➜  selenium git:(main) ✗ yarn test
+?? selenium git:(main) ??yarn test
 yarn run v1.22.11
 $ Mocha
 
 
   Hello Tauri
-    ✔ should be cordial (120ms)
-    ✔ should be excited
-    ✔ should be easy on the eyes
+    ??should be cordial (120ms)
+    ??should be excited
+    ??should be easy on the eyes
 
 
   3 passing (588ms)
@@ -9913,7 +9905,7 @@ Now that we are all set up with config and a spec let's run it!
 We should see output the following output:
 
 ```text
-➜  webdriverio git:(main) ✗ yarn test
+?? webdriverio git:(main) ??yarn test
 yarn run v1.22.11
 $ wdio run wdio.conf.js
 
@@ -9927,11 +9919,11 @@ Execution of 1 workers started at 2021-08-17T08:06:10.279Z
 [wry 0.12.1 linux #0-0] Running: wry (v0.12.1) on linux
 [wry 0.12.1 linux #0-0] Session ID: 81e0107b-4d38-4eed-9b10-ee80ca47bb83
 [wry 0.12.1 linux #0-0]
-[wry 0.12.1 linux #0-0] » /develop/tests/specs/example.e2e.js
+[wry 0.12.1 linux #0-0]  /develop/tests/specs/example.e2e.js
 [wry 0.12.1 linux #0-0] Hello Tauri
-[wry 0.12.1 linux #0-0]    ✓ should be cordial
-[wry 0.12.1 linux #0-0]    ✓ should be excited
-[wry 0.12.1 linux #0-0]    ✓ should be easy on the eyes
+[wry 0.12.1 linux #0-0]    ??should be cordial
+[wry 0.12.1 linux #0-0]    ??should be excited
+[wry 0.12.1 linux #0-0]    ??should be easy on the eyes
 [wry 0.12.1 linux #0-0]
 [wry 0.12.1 linux #0-0] 3 passing (244ms)
 
@@ -11224,19 +11216,19 @@ GUI apps on macOS and Linux do not inherit the `$PATH` from your shell dotfiles 
 The macOS app bundle is a directory with the following structure:
 
 ```
-├── <productName>.app
-│   ├── Contents
-│   │   ├── Info.plist
-│   │   ├── ...additional files from [`tauri.conf.json > bundle > macOS > files`]
-│   ├── MacOS
-│   │   ├── <app-name> (app executable)
-│   ├── Resources
-│   │   ├── icon.icns (app icon)
-│   │   ├── ...resources from [`tauri.conf.json > bundle > resources`]
-│   ├── _CodeSignature (codesign information generated by Apple)
-│   ├── Frameworks
-│   ├── PlugIns
-│   ├── SharedSupport
+??? <productName>.app
+??  ??? Contents
+??  ??  ??? Info.plist
+??  ??  ??? ...additional files from [`tauri.conf.json > bundle > macOS > files`]
+??  ??? MacOS
+??  ??  ??? <app-name> (app executable)
+??  ??? Resources
+??  ??  ??? icon.icns (app icon)
+??  ??  ??? ...resources from [`tauri.conf.json > bundle > resources`]
+??  ??? _CodeSignature (codesign information generated by Apple)
+??  ??? Frameworks
+??  ??? PlugIns
+??  ??? SharedSupport
 ```
 
 See the [official documentation](https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html) for more information.
@@ -11274,13 +11266,13 @@ The `Info.plist` file by itself only supports a single language, typically Engli
 To bundle these files automatically you can leverage Tauri's [resources] feature. To do that, create a file structure in your project following this pattern:
 
 ```
-├── src-tauri
-│   ├── tauri.conf.json
-│   ├── infoplist
-│   │   ├── de.lproj
-│   │   │   ├── InfoPlist.strings
-│   │   ├── fr.lproj
-│   │   │   ├── InfoPlist.strings
+??? src-tauri
+??  ??? tauri.conf.json
+??  ??? infoplist
+??  ??  ??? de.lproj
+??  ??  ??  ??? InfoPlist.strings
+??  ??  ??? fr.lproj
+??  ??  ??  ??? InfoPlist.strings
 ```
 
 While the `infoplist` directory name can be chosen freely, as long as you update it in the resources config below, the `lproj` directories must follow the `<lang-code>.lproj` naming and the string catalogue files must be named `InfoPlist.strings` (capital i and p). For most cases the language code should be a two letter code following [BCP 47].
@@ -11288,8 +11280,8 @@ While the `infoplist` directory name can be chosen freely, as long as you update
 For the `Info.plist` example shown above, the `de.lproj > InfoPlist.strings` file could look like this:
 
 ```ini title="de.lproj/InfoPlist.strings"
-NSCameraUsageDescription = "Kamera Zugriff wird benötigt für WebRTC Funktionalität";
-NSMicrophoneUsageDescription = "Mikrofon Zugriff wird benötigt für WebRTC Funktionalität";
+NSCameraUsageDescription = "Kamera Zugriff wird bentigt fr WebRTC Funktionalitt";
+NSMicrophoneUsageDescription = "Mikrofon Zugriff wird bentigt fr WebRTC Funktionalitt";
 ```
 
 Lastly, make Tauri pick up these files by using the resources feature mentioned above:
@@ -12470,7 +12462,7 @@ To build and bundle your app into a Windows installer you can use the Tauri CLI 
 
 :::note[VBSCRIPT requirement for MSI packages]
 
-Building MSI packages (`"targets": "msi"` or `"targets": "all"` in `tauri.conf.json`) requires the VBSCRIPT optional feature to be enabled on Windows. This feature is enabled by default on most Windows installations, but if you encounter errors like `failed to run light.exe`, you may need to enable it manually through **Settings** → **Apps** → **Optional features** → **More Windows features**. See the [Prerequisites guide](/start/prerequisites/#vbscript-for-msi-installers) for detailed instructions.
+Building MSI packages (`"targets": "msi"` or `"targets": "all"` in `tauri.conf.json`) requires the VBSCRIPT optional feature to be enabled on Windows. This feature is enabled by default on most Windows installations, but if you encounter errors like `failed to run light.exe`, you may need to enable it manually through **Settings** ??**Apps** ??**Optional features** ??**More Windows features**. See the [Prerequisites guide](/start/prerequisites/#vbscript-for-msi-installers) for detailed instructions.
 
 :::
 
@@ -12658,7 +12650,7 @@ See the following table for a comparison between these methods:
 | [`embedBootstrapper`](#embedded-bootstrapper)      | Yes                           | ~1.8MB                    | Better support on Windows 7 for `.msi` installers.                                                                      |
 | [`offlineInstaller`](#offline-installer)           | No                            | ~127MB                    | Embeds WebView2 installer. Recommended for offline environments.                                                        |
 | [`fixedVersion`](#fixed-version)                   | No                            | ~180MB                    | Embeds a fixed WebView2 version.                                                                                        |
-| [`skip`](#skipping-installation)                   | No                            | 0MB                       | ⚠️ Not recommended <br /> Does not install the WebView2 as part of the Windows Installer.                               |
+| [`skip`](#skipping-installation)                   | No                            | 0MB                       | ?? Not recommended <br /> Does not install the WebView2 as part of the Windows Installer.                               |
 
 :::info
 
@@ -14041,7 +14033,7 @@ There are a few things we have to do to get Windows prepared for code signing. T
    - Now Import the certificate using `Import-PfxCertificate -FilePath certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString -String $WINDOWS_PFX_PASSWORD -Force -AsPlainText)`
 
 3. #### Prepare Variables
-   - Start ➡️ `certmgr.msc` to open Personal Certificate Management, then open Personal/Certificates.
+   - Start ?? `certmgr.msc` to open Personal Certificate Management, then open Personal/Certificates.
 
    - Find the certificate we just imported and double-click on it, then click on the Details tab.
 
@@ -16165,11 +16157,11 @@ permissions are used.
     ```
 
     ```
-    ✔ Project name · plugin-permission-demo
-    ✔ Choose which language to use for your frontend · TypeScript / JavaScript - (pnpm, yarn, npm, bun)
-    ✔ Choose your package manager · pnpm
-    ✔ Choose your UI template · Vanilla
-    ✔ Choose your UI flavor · TypeScript
+    ??Project name  plugin-permission-demo
+    ??Choose which language to use for your frontend  TypeScript / JavaScript - (pnpm, yarn, npm, bun)
+    ??Choose your package manager  pnpm
+    ??Choose your UI template  Vanilla
+    ??Choose your UI flavor  TypeScript
 
     Template created! To get started run:
     cd plugin-permission-demo
@@ -16405,7 +16397,7 @@ permissions are used.
         ```
 
         You should be presented with your input and finished learning about using permissions from plugins in Tauri applications.
-        🥳
+        ?
 
 
         If you encountered this error:
@@ -16863,7 +16855,7 @@ and hand crafted.
 
     And you should find a `test.txt` file in your temporary folder containing a message
     from our new implemented plugin command. 
-    🥳
+    ?
 
     </ShowSolution>
 

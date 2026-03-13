@@ -298,7 +298,7 @@ After writing into the input and clicking "Submit",
         file in your home folder.
 
 You should be presented with your input and finished learning about using permissions from plugins in Tauri applications.
-        🥳
+        ?
 
 If you encountered this error:
 
@@ -314,11 +314,11 @@ pnpm create tauri-app
 
 Example 2 (unknown):
 ```unknown
-✔ Project name · plugin-permission-demo
-    ✔ Choose which language to use for your frontend · TypeScript / JavaScript - (pnpm, yarn, npm, bun)
-    ✔ Choose your package manager · pnpm
-    ✔ Choose your UI template · Vanilla
-    ✔ Choose your UI flavor · TypeScript
+??Project name  plugin-permission-demo
+    ??Choose which language to use for your frontend  TypeScript / JavaScript - (pnpm, yarn, npm, bun)
+    ??Choose your package manager  pnpm
+    ??Choose your UI template  Vanilla
+    ??Choose your UI flavor  TypeScript
 
     Template created! To get started run:
     cd plugin-permission-demo
@@ -436,30 +436,30 @@ const MAX_LEN_IDENTIFIER: usize = MAX_LEN_PREFIX + 1 + MAX_LEN_BASE;
 Example 3 (sh):
 ```sh
 tauri-plugin
-├── README.md
-├── src
-│  └── lib.rs
-├── build.rs
-├── Cargo.toml
-├── permissions
-│  └── <identifier>.json/toml
-│  └── default.json/toml
+??? README.md
+??? src
+?? ??? lib.rs
+??? build.rs
+??? Cargo.toml
+??? permissions
+?? ??? <identifier>.json/toml
+?? ??? default.json/toml
 ```
 
 Example 4 (sh):
 ```sh
 tauri-app
-├── index.html
-├── package.json
-├── src
-├── src-tauri
-│   ├── Cargo.toml
-│   ├── permissions
-│      └── <identifier>.toml
-|   ├── capabilities
-│      └── <identifier>.json/.toml
-│   ├── src
-│   ├── tauri.conf.json
+??? index.html
+??? package.json
+??? src
+??? src-tauri
+??  ??? Cargo.toml
+??  ??? permissions
+??     ??? <identifier>.toml
+|   ??? capabilities
+??     ??? <identifier>.json/.toml
+??  ??? src
+??  ??? tauri.conf.json
 ```
 
 ---
@@ -740,7 +740,7 @@ Running this and pressing the "Write" button you should be greeted with this:
 
 And you should find a `test.txt` file in your temporary folder containing a message
     from our new implemented plugin command. 
-    🥳
+    ?
 
 **Examples:**
 

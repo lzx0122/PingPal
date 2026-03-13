@@ -608,7 +608,7 @@ Building MSI packages on Windows requires the VBSCRIPT optional feature to be en
 
 If you encounter errors like `failed to run light.exe` when building MSI packages, you may need to enable the VBSCRIPT feature:
 
-1. Open **Settings** → **Apps** → **Optional features** → **More Windows features**
+1. Open **Settings** ??**Apps** ??**Optional features** ??**More Windows features**
 2. Locate **VBSCRIPT** in the list and ensure it's checked
 3. Click **Next** and restart your computer if prompted
 
@@ -1262,20 +1262,20 @@ To define the schema, first add the dependency to your Cargo.toml file:
 Example 1 (unknown):
 ```unknown
 . tauri-plugin-[name]/
-├── src/                - Rust code
-│ ├── commands.rs       - Defines the commands the webview can use
-| ├── desktop.rs        - Desktop implementation
-| ├── error.rs          - Default error type to use in returned results
-│ ├── lib.rs            - Re-exports appropriate implementation, setup state...
-│ ├── mobile.rs         - Mobile implementation
-│ └── models.rs         - Shared structs
-├── permissions/        - This will host (generated) permission files for commands
-├── android             - Android library
-├── ios                 - Swift package
-├── guest-js            - Source code of the JavaScript API bindings
-├── dist-js             - Transpiled assets from guest-js
-├── Cargo.toml          - Cargo crate metadata
-└── package.json        - NPM package metadata
+??? src/                - Rust code
+????? commands.rs       - Defines the commands the webview can use
+| ??? desktop.rs        - Desktop implementation
+| ??? error.rs          - Default error type to use in returned results
+????? lib.rs            - Re-exports appropriate implementation, setup state...
+????? mobile.rs         - Mobile implementation
+????? models.rs         - Shared structs
+??? permissions/        - This will host (generated) permission files for commands
+??? android             - Android library
+??? ios                 - Swift package
+??? guest-js            - Source code of the JavaScript API bindings
+??? dist-js             - Transpiled assets from guest-js
+??? Cargo.toml          - Cargo crate metadata
+??? package.json        - NPM package metadata
 ```
 
 Example 2 (json):

@@ -27,8 +27,8 @@ export const GAMES: Game[] = [
     servers: [
       {
         id: "tw-gcp-1",
-        name: "台灣 GCP 節點 1",
-        flag: "🇹🇼",
+        name: "Taiwan GCP Node 1",
+        flag: "",
         region: "Taiwan (Changhua)",
         endpoint: "34.80.46.250:51820",
         publicKey: "J8j5OOO9qtR8eI+GSw+TBttF3scLv1aiUeoLoMu8B2w=",

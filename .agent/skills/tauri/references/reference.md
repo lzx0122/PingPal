@@ -387,22 +387,22 @@ import SinceVersion from '../../../components/SinceVersion.astro';
 A header defined in the configuration gets sent along the responses to the webview.
 This doesn't include IPC messages and error responses.
 To be more specific, every response sent via the `get_response` function in
-<a href="https://github.com/tauri-apps/tauri/blob/8e8312bb8201ccc609e4bbc1a990bdc314daa00f/crates/tauri/src/protocol/tauri.rs#L103" target="_blank">crates/tauri/src/protocol/tauri.rs ↗</a>
+<a href="https://github.com/tauri-apps/tauri/blob/8e8312bb8201ccc609e4bbc1a990bdc314daa00f/crates/tauri/src/protocol/tauri.rs#L103" target="_blank">crates/tauri/src/protocol/tauri.rs ??/a>
 will include those headers.
 
 The header names are limited to:
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials" target="_blank">Access-Control-Allow-Credentials ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Headers" target="_blank">Access-Control-Allow-Headers ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Methods" target="_blank">Access-Control-Allow-Methods ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Expose-Headers" target="_blank">Access-Control-Expose-Headers ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Max-Age" target="_blank">Access-Control-Max-Age ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy" target="_blank">Cross-Origin-Embedder-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy" target="_blank">Cross-Origin-Opener-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy" target="_blank">Cross-Origin-Resource-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy" target="_blank">Permissions-Policy ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Service-Worker-Allowed" target="_blank">Service-Worker-Allowed ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Timing-Allow-Origin" target="_blank">Timing-Allow-Origin ↗</a>
-- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options" target="_blank">X-Content-Type-Options ↗</a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials" target="_blank">Access-Control-Allow-Credentials ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Headers" target="_blank">Access-Control-Allow-Headers ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Methods" target="_blank">Access-Control-Allow-Methods ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Expose-Headers" target="_blank">Access-Control-Expose-Headers ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Max-Age" target="_blank">Access-Control-Max-Age ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy" target="_blank">Cross-Origin-Embedder-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy" target="_blank">Cross-Origin-Opener-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy" target="_blank">Cross-Origin-Resource-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Permissions-Policy" target="_blank">Permissions-Policy ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Service-Worker-Allowed" target="_blank">Service-Worker-Allowed ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Timing-Allow-Origin" target="_blank">Timing-Allow-Origin ??/a>
+- <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options" target="_blank">X-Content-Type-Options ??/a>
 - Tauri-Custom-Header
 
 :::note
@@ -434,8 +434,8 @@ For Tests: Remember to set `Access-Control-Expose-Headers` accordingly.
 :::
 
 In this example `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` are set to
-allow for the use of <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer" target="_blank">`SharedArrayBuffer ↗`</a>.
-`Timing-Allow-Origin` grants scripts loaded from the listed websites to access detailed network timing data via the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing" target="_blank">Resource Timing API ↗</a>.
+allow for the use of <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer" target="_blank">`SharedArrayBuffer ?</a>.
+`Timing-Allow-Origin` grants scripts loaded from the listed websites to access detailed network timing data via the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing" target="_blank">Resource Timing API ??/a>.
 
 For the helloworld example, this config results in:
 
@@ -451,7 +451,7 @@ In case of **Angular** add them to `angular.json`.
 And in case of **Nuxt** to `nuxt.config.ts`.
 
 **Next.js** doesn't rely on **Vite**, so the approach is different.
-Read more about it <a href="https://nextjs.org/docs/pages/api-reference/next-config-js/headers" target="_blank">here ↗</a>.
+Read more about it <a href="https://nextjs.org/docs/pages/api-reference/next-config-js/headers" target="_blank">here ??/a>.
 The headers are defined in `next.config.js`.
 
 For **Yew** and **Leptos** add the headers to `Trunk.toml`
@@ -466,8 +466,8 @@ For Tests: Remember to set `Access-Control-Expose-Headers` accordingly.
 :::
 
 In this example `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` are set to
-allow for the use of <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer" target="_blank">`SharedArrayBuffer ↗`</a>.
-`Timing-Allow-Origin` grants scripts loaded from the listed websites to access detailed network timing data via the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing" target="_blank">Resource Timing API ↗</a>.
+allow for the use of <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer" target="_blank">`SharedArrayBuffer ?</a>.
+`Timing-Allow-Origin` grants scripts loaded from the listed websites to access detailed network timing data via the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Resource_timing" target="_blank">Resource Timing API ??/a>.
 
 For the helloworld example, this config results in:
 ```
@@ -605,24 +605,24 @@ If you want to work with Rust code only, simply remove everything else and use t
 Example 1 (unknown):
 ```unknown
 .
-├── package.json
-├── index.html
-├── src/
-│   ├── main.js
-├── src-tauri/
-│   ├── Cargo.toml
-│   ├── Cargo.lock
-│   ├── build.rs
-│   ├── tauri.conf.json
-│   ├── src/
-│   │   ├── main.rs
-│   │   └── lib.rs
-│   ├── icons/
-│   │   ├── icon.png
-│   │   ├── icon.icns
-│   │   └── icon.ico
-│   └── capabilities/
-│       └── default.json
+??? package.json
+??? index.html
+??? src/
+??  ??? main.js
+??? src-tauri/
+??  ??? Cargo.toml
+??  ??? Cargo.lock
+??  ??? build.rs
+??  ??? tauri.conf.json
+??  ??? src/
+??  ??  ??? main.rs
+??  ??  ??? lib.rs
+??  ??? icons/
+??  ??  ??? icon.png
+??  ??  ??? icon.icns
+??  ??  ??? icon.ico
+??  ??? capabilities/
+??      ??? default.json
 ```
 
 ---

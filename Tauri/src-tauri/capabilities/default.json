@@ -11,6 +11,8 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
+    "store:default",
+    "store:allow-load",
     {
       "identifier": "shell:allow-execute",
       "allow": [

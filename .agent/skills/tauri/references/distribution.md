@@ -63,7 +63,7 @@ There are a few things we have to do to get Windows prepared for code signing. T
 - Now Import the certificate using `Import-PfxCertificate -FilePath certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString -String $WINDOWS_PFX_PASSWORD -Force -AsPlainText)`
 
 3. #### Prepare Variables
-   - Start ➡️ `certmgr.msc` to open Personal Certificate Management, then open Personal/Certificates.
+   - Start ?? `certmgr.msc` to open Personal Certificate Management, then open Personal/Certificates.
 
 - Find the certificate we just imported and double-click on it, then click on the Details tab.
 

@@ -3,103 +3,29 @@ import { ref, onMounted } from "vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Monitor, Trash2, Loader2, AlertCircle } from "lucide-vue-next";
+import { useVpnProfile } from "@/composables/useVpnProfile";
 
-interface VpnProfile {
-  id: string;
-  device_name: string;
-  public_key: string;
-  created_at: string;
-  user_id: string;
-  is_active: boolean;
-}
+const { profiles, isLoading, error, fetchProfiles, deleteProfile } =
+  useVpnProfile();
 
-const profiles = ref<VpnProfile[]>([]);
-const isLoading = ref(true);
 const isDeletingId = ref<string | null>(null);
-const error = ref<string | null>(null);
 
 onMounted(() => {
   fetchProfiles();
 });
 
-async function fetchProfiles() {
-  try {
-    isLoading.value = true;
-    error.value = null;
-
-    const token = localStorage.getItem("auth_token");
-    if (!token) {
-      error.value = "Not authenticated";
-      return;
-    }
-
-    const response = await fetch("http://localhost:3000/api/vpn/profiles", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (response.status === 401) {
-      import("@/composables/useAuth").then(({ useAuth }) => {
-        useAuth().logout();
-      });
-      throw new Error("Session expired. Please login again.");
-    }
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch profiles");
-    }
-
-    profiles.value = await response.json();
-  } catch (e: any) {
-    console.error("Failed to fetch profiles:", e);
-    error.value = e.message || "Failed to load devices";
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-async function deleteProfile(profileId: string) {
-  if (!confirm("Are you sure you want to delete this device?")) {
+async function handleDelete(profileId: string) {
+  if (
+    !confirm(
+      "Are you sure you want to delete this device? You will need to re-register to use VPN.",
+    )
+  ) {
     return;
   }
-
   try {
     isDeletingId.value = profileId;
-    error.value = null;
-
-    const token = localStorage.getItem("auth_token");
-    if (!token) {
-      error.value = "Not authenticated";
-      return;
-    }
-
-    const response = await fetch(
-      `http://localhost:3000/api/vpn/profiles/${profileId}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
-
-    if (response.status === 401) {
-      import("@/composables/useAuth").then(({ useAuth }) => {
-        useAuth().logout();
-      });
-      throw new Error("Session expired. Please login again.");
-    }
-
-    if (!response.ok) {
-      throw new Error("Failed to delete device");
-    }
-
-    // Remove from local list
-    profiles.value = profiles.value.filter((p) => p.id !== profileId);
-  } catch (e: any) {
-    console.error("Failed to delete profile:", e);
-    error.value = e.message || "Failed to delete device";
+    await deleteProfile(profileId);
+  } catch {
   } finally {
     isDeletingId.value = null;
   }
@@ -125,10 +51,18 @@ function formatDate(dateString: string) {
       <h2 class="text-3xl font-bold tracking-tight text-white">
         Device Management
       </h2>
-      <span class="text-sm text-zinc-500">{{ profiles.length }}/5 DEVICES</span>
+      <span
+        class="text-sm font-mono px-3 py-1 rounded-full border"
+        :class="
+          profiles.length >= 5
+            ? 'text-red-400 border-red-900 bg-red-950/30'
+            : 'text-zinc-500 border-zinc-800'
+        "
+      >
+        {{ profiles.length }}/5 DEVICES
+      </span>
     </div>
 
-    <!-- Error Message -->
     <div
       v-if="error"
       class="mb-6 p-4 bg-red-900/20 border border-red-900 rounded-lg flex items-center gap-3 text-red-500"
@@ -137,16 +71,23 @@ function formatDate(dateString: string) {
       <span>{{ error }}</span>
     </div>
 
-    <!-- Loading State -->
     <div
-      v-if="isLoading"
+      v-if="isLoading && profiles.length === 0"
       class="flex items-center justify-center py-20 text-zinc-500"
     >
       <Loader2 class="w-8 h-8 animate-spin" />
     </div>
 
-    <!-- Device List -->
     <div v-else-if="profiles.length > 0" class="space-y-4">
+      <div
+        v-if="profiles.length >= 5"
+        class="p-3 bg-amber-950/30 border border-amber-900/50 rounded-lg flex items-center gap-3 text-amber-400 text-sm"
+      >
+        <AlertCircle class="w-4 h-4 flex-shrink-0" />
+        Device limit reached (5/5). Delete an existing device before registering
+        a new one.
+      </div>
+
       <Card
         v-for="profile in profiles"
         :key="profile.id"
@@ -182,11 +123,11 @@ function formatDate(dateString: string) {
             </div>
 
             <Button
-              @click="deleteProfile(profile.id)"
-              :disabled="isDeletingId === profile.id"
+              @click="handleDelete(profile.id)"
+              :disabled="isDeletingId === profile.id || isLoading"
               variant="ghost"
               size="icon"
-              class="text-zinc-500 hover:text-red-500 hover:bg-red-950/20"
+              class="text-zinc-500 hover:text-red-500 hover:bg-red-950/20 transition-colors"
             >
               <Loader2
                 v-if="isDeletingId === profile.id"
@@ -199,7 +140,6 @@ function formatDate(dateString: string) {
       </Card>
     </div>
 
-    <!-- Empty State -->
     <div
       v-else
       class="text-center py-20 border border-zinc-900 rounded-lg bg-zinc-950"

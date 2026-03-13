@@ -1,8 +1,5 @@
 import { ref } from "vue";
-
-import { useAuthStore } from "../stores/authStore";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+import { apiFetch } from "../lib/apiClient";
 
 export interface VpnProfile {
   id: string;
@@ -26,15 +23,6 @@ export function useVpnProfile() {
   const servers = ref<ServerInfo[]>([]);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
-
-  const authStore = useAuthStore();
-
-  const getHeaders = () => {
-    return {
-      "Content-Type": "application/json",
-      ...authStore.getAuthHeaders(),
-    };
-  };
 
   /**
    * Generates a new WireGuard keypair using @stablelib.
@@ -62,13 +50,7 @@ export function useVpnProfile() {
     isLoading.value = true;
     error.value = null;
     try {
-      const response = await fetch(`${API_URL}/api/servers`, {
-        headers: getHeaders(),
-      });
-      if (response.status === 401) {
-        authStore.logout();
-        throw new Error("Session expired. Please login again.");
-      }
+      const response = await apiFetch("/api/servers");
       if (!response.ok) throw new Error("Failed to fetch servers");
       servers.value = await response.json();
     } catch (e: any) {
@@ -83,13 +65,7 @@ export function useVpnProfile() {
     isLoading.value = true;
     error.value = null;
     try {
-      const response = await fetch(`${API_URL}/api/vpn/profiles`, {
-        headers: getHeaders(),
-      });
-      if (response.status === 401) {
-        authStore.logout();
-        throw new Error("Session expired. Please login again.");
-      }
+      const response = await apiFetch("/api/vpn/profiles");
       if (!response.ok) throw new Error("Failed to fetch profiles");
       profiles.value = await response.json();
     } catch (e: any) {
@@ -100,23 +76,33 @@ export function useVpnProfile() {
     }
   }
 
+  async function deleteProfile(profileId: string) {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      const response = await apiFetch(`/api/vpn/profiles/${profileId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete device");
+      // Also refresh profiles list
+      await fetchProfiles();
+    } catch (e: any) {
+      console.error("Delete Profile Error:", e);
+      error.value = e.message || "Failed to delete device";
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function registerProfile(deviceName: string, publicKey: string) {
     isLoading.value = true;
     error.value = null;
     try {
-      const response = await fetch(`${API_URL}/api/vpn/register`, {
+      const response = await apiFetch("/api/vpn/register", {
         method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          publicKey,
-          deviceName,
-        }),
+        body: JSON.stringify({ publicKey, deviceName }),
       });
-
-      if (response.status === 401) {
-        authStore.logout();
-        throw new Error("Session expired. Please login again.");
-      }
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -125,10 +111,7 @@ export function useVpnProfile() {
       }
 
       const result = await response.json();
-
-      // Refresh profiles list
       await fetchProfiles();
-
       return result;
     } catch (e: any) {
       console.error("Registration error:", e);
@@ -151,17 +134,8 @@ export function useVpnProfile() {
     error.value = null;
 
     try {
-      if (!authStore.isAuthenticated) {
-        throw new Error("User not authenticated");
-      }
-
-      console.log(
-        `[useVpnProfile] Connecting profile ${profileId} to server ${serverIp}`,
-      );
-
-      const response = await fetch(`${API_URL}/api/vpn/connect`, {
+      const response = await apiFetch("/api/vpn/connect", {
         method: "POST",
-        headers: getHeaders(),
         body: JSON.stringify({
           profile_id: profileId,
           server_ip: serverIp,
@@ -175,8 +149,6 @@ export function useVpnProfile() {
       }
 
       const connectionData = await response.json();
-      console.log("[useVpnProfile] Received connection data:", connectionData);
-
       return connectionData;
     } catch (e: any) {
       console.error("Connection request error:", e);
@@ -195,6 +167,7 @@ export function useVpnProfile() {
     generateKeys,
     fetchServers,
     fetchProfiles,
+    deleteProfile,
     registerProfile,
     connectToServer,
   };

@@ -3,12 +3,11 @@ import { ref, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { useVpnProfile } from "@/composables/useVpnProfile";
-import { useAuthStore } from "@/stores/authStore";
 import { useVpnStore } from "@/stores/vpnStore";
-import { Loader2, Monitor } from "lucide-vue-next";
+import { apiFetch } from "@/lib/apiClient";
+import { Loader2, Monitor, Settings2 } from "lucide-vue-next";
 
 const { registerProfile, generateKeys } = useVpnProfile();
-const authStore = useAuthStore();
 const vpnStore = useVpnStore();
 
 const deviceName = ref("");
@@ -17,7 +16,7 @@ const error = ref<string | null>(null);
 const deviceCount = ref(0);
 const isLoadingDeviceName = ref(true);
 
-const emit = defineEmits(["profile-registered"]);
+const emit = defineEmits(["profile-registered", "go-to-devices"]);
 
 onMounted(async () => {
   await fetchDeviceCount();
@@ -38,16 +37,7 @@ async function autoDetectDeviceName() {
 
 async function fetchDeviceCount() {
   try {
-    const token = authStore.token;
-    if (!token) return;
-
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    const response = await fetch(`${API_URL}/api/vpn/profiles`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
+    const response = await apiFetch("/api/vpn/profiles");
     if (response.ok) {
       const profiles = await response.json();
       deviceCount.value = profiles.length;
@@ -67,19 +57,14 @@ async function handleRegister() {
   error.value = null;
 
   try {
-    // 1. Generate WireGuard Keys
     const keys = await generateKeys();
-    console.log("Keys generated:", keys.publicKey);
 
-    // 2. Call API (no server selection needed)
     const result = await registerProfile(deviceName.value, keys.publicKey);
 
     console.log("Registration success:", result);
 
-    // 3. Save profile ID and private key securely to Pinia Store
     const profileId = result.profile_id;
 
-    // Explicitly call to Pinia VPN store to preserve state
     await vpnStore.saveConfig(
       profileId,
       keys.privateKey,
@@ -136,19 +121,26 @@ async function handleRegister() {
           Detecting device name...
         </p>
         <p class="text-xs text-zinc-400">
-          ✨ You can connect to any VPS server after registration
+          You can connect to any VPS server after registration
         </p>
       </div>
 
-      <!-- Error Message -->
       <div
         v-if="error"
-        class="p-3 bg-red-900/20 border border-red-900 rounded-lg text-red-500 text-sm"
+        class="p-3 bg-red-900/20 border border-red-900 rounded-lg text-red-500 text-sm space-y-3"
       >
-        {{ error }}
+        <p>{{ error }}</p>
+        <Button
+          v-if="deviceCount >= 5"
+          @click="emit('go-to-devices')"
+          variant="outline"
+          class="w-full h-9 text-sm border-red-800 text-red-400 hover:bg-red-950/40 hover:text-red-300"
+        >
+          <Settings2 class="w-4 h-4 mr-2" />
+          Manage Devices
+        </Button>
       </div>
 
-      <!-- Register Button -->
       <Button
         @click="handleRegister"
         :disabled="isRegistering || !deviceName"

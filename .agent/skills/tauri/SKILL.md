@@ -31,8 +31,8 @@ Tauri uses a **Core Process** (Rust) and **WebView Process** (HTML/CSS/JS) archi
 
 ### Inter-Process Communication (IPC)
 Two IPC primitives:
-- **Events**: Fire-and-forget, one-way messages (both Core → WebView and WebView → Core)
-- **Commands**: Request-response pattern using `invoke()` API (WebView → Core only)
+- **Events**: Fire-and-forget, one-way messages (both Core ??WebView and WebView ??Core)
+- **Commands**: Request-response pattern using `invoke()` API (WebView ??Core only)
 
 ### Why Tauri?
 - **Small binaries**: Uses OS WebViews (Microsoft Edge WebView2/WKWebView/webkitgtk)
@@ -246,14 +246,14 @@ This skill includes comprehensive documentation organized into 9 categories:
 
 ### For Beginners
 1. **Start with**: `getting_started.md` for project setup and basic concepts
-2. **Then read**: `core_concepts.md` → Process Model and IPC sections
-3. **Practice**: Set up debugging with `development.md` → Debug in VS Code
+2. **Then read**: `core_concepts.md` ??Process Model and IPC sections
+3. **Practice**: Set up debugging with `development.md` ??Debug in VS Code
 4. **Build**: Follow tutorials in `tutorials.md`
 
 **Common beginner questions:**
-- "How do I create a Tauri app?" → `getting_started.md`
-- "What is the Core Process?" → `core_concepts.md` → Process Model
-- "How do I call Rust from JavaScript?" → `core_concepts.md` → IPC → Commands
+- "How do I create a Tauri app?" ??`getting_started.md`
+- "What is the Core Process?" ??`core_concepts.md` ??Process Model
+- "How do I call Rust from JavaScript?" ??`core_concepts.md` ??IPC ??Commands
 
 ### For Intermediate Developers
 1. **Focus on**: `plugins.md` for custom native functionality
@@ -262,9 +262,9 @@ This skill includes comprehensive documentation organized into 9 categories:
 4. **Implement**: Custom IPC patterns from `core_concepts.md`
 
 **Common intermediate questions:**
-- "How do I create a custom plugin?" → `plugins.md` → Plugin Development
-- "How do I debug performance issues?" → `development.md` → CrabNebula DevTools
-- "What configuration options are available?" → `reference.md`
+- "How do I create a custom plugin?" ??`plugins.md` ??Plugin Development
+- "How do I debug performance issues?" ??`development.md` ??CrabNebula DevTools
+- "What configuration options are available?" ??`reference.md`
 
 ### For Advanced Users
 1. **Deep dive**: `security.md` for production-ready security
@@ -273,9 +273,9 @@ This skill includes comprehensive documentation organized into 9 categories:
 4. **Customize**: Advanced patterns in `other.md`
 
 **Common advanced questions:**
-- "How do I set up code signing for Windows?" → `distribution.md` → Windows Code Signing
-- "How do I create mobile plugins?" → `development.md` → Mobile Plugin Development
-- "What are the security best practices?" → `security.md`
+- "How do I set up code signing for Windows?" ??`distribution.md` ??Windows Code Signing
+- "How do I create mobile plugins?" ??`development.md` ??Mobile Plugin Development
+- "What are the security best practices?" ??`security.md`
 
 ### Navigation Tips
 - **Search by topic**: Each reference file has a table of contents

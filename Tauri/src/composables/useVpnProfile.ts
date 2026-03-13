@@ -137,9 +137,8 @@ export function useVpnProfile() {
       const response = await apiFetch("/api/vpn/connect", {
         method: "POST",
         body: JSON.stringify({
-          profile_id: profileId,
-          server_ip: serverIp,
-          endpoint_port: endpointPort,
+          profileId,
+          serverIp,
         }),
       });
 

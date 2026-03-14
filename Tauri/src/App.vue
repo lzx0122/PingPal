@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { apiFetch } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,43 @@ import {
   LogOut,
 } from "lucide-vue-next";
 import { GAMES, type Game, type Server } from "@/data/games";
+
+// Dynamic server data
+const allServers = ref<Server[]>([]);
+const isServersLoading = ref(false);
+
+// Load all servers and inject filtered servers by tag into each game
+async function fetchServers() {
+  isServersLoading.value = true;
+  try {
+    const res = await apiFetch("/api/servers");
+    if (!res.ok) throw new Error("Failed to fetch servers");
+    const servers: Server[] = await res.json();
+    allServers.value = servers;
+  } catch (e) {
+    console.error(e);
+    allServers.value = [];
+  } finally {
+    isServersLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  fetchServers();
+});
+
+// Filter servers by tag and return a new games array
+const gamesWithServers = computed(() => {
+  return GAMES.map((game) => ({
+    ...game,
+    servers: allServers.value.filter((s) => s.tags?.includes(game.tag)),
+  }));
+});
 import TitleBar from "@/components/TitleBar.vue";
 import Login from "@/components/Login.vue";
 import VPNRegistration from "@/components/VPNRegistration.vue";
 import DeviceManager from "@/components/DeviceManager.vue";
+import GameDetails from "@/components/game/GameDetails.vue";
 import { useAuthStore } from "@/stores/authStore";
 import { useVpnProfile } from "@/composables/useVpnProfile";
 import { useVpnStore } from "@/stores/vpnStore";
@@ -26,10 +59,12 @@ const authStore = useAuthStore();
 const { connectToServer, fetchProfiles, profiles } = useVpnProfile();
 const vpnStore = useVpnStore();
 
+  // Dynamic server data
 type ViewState = "home" | "details" | "register" | "devices";
 const currentView = ref<ViewState>("home");
 const selectedGame = ref<Game | null>(null);
 const selectedServer = ref<Server | null>(null);
+  // Fetch all servers from API
 
 const status = ref("Ready");
 const isConnected = ref(false);
@@ -50,6 +85,7 @@ onMounted(async () => {
       console.error("Failed to parse VPN config", e);
       localStorage.removeItem("vpn_config");
       vpnConfig.value = null;
+  // Map games with filtered servers by tag
       localProfileId.value = null;
     }
   }
@@ -90,15 +126,21 @@ watch(
   { immediate: true },
 );
 
+// When entering details, filter servers by tag
 const goToDetails = (game: Game) => {
   selectedGame.value = game;
-  if (game.servers.length > 0) {
-    selectedServer.value = game.servers[0];
+  // Get the servers corresponding to the selected game
+  const servers = allServers.value.filter((s) => s.tags?.includes(game.tag));
+  if (servers.length > 0) {
+    selectedServer.value = servers[0];
+  } else {
+    selectedServer.value = null;
   }
   fetchGameRanges(game.id);
   currentView.value = "details";
 };
 
+  // Check if local profileId still exists in server device list
 const goToHome = () => {
   currentView.value = "home";
   selectedGame.value = null;
@@ -129,6 +171,7 @@ const fetchGameRanges = async (gameId: string) => {
   }
 };
 
+  // When entering details, filter servers by tag
 const getWgConfig = (serverConfig: any) => {
   const allowedIps = Array.from(gameIpRanges.value).join(", ");
 
@@ -382,7 +425,7 @@ const handleDisconnect = async () => {
               class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
             >
               <Card
-                v-for="game in GAMES"
+                v-for="game in gamesWithServers"
                 :key="game.id"
                 class="bg-zinc-900 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800 transition-all duration-300 group relative overflow-hidden cursor-pointer h-[280px]"
                 @click="goToDetails(game)"
@@ -401,6 +444,10 @@ const handleDisconnect = async () => {
                   <CardTitle class="text-xl font-bold text-white mb-1">{{
                     game.name
                   }}</CardTitle>
+                  <div class="text-xs text-zinc-400 mt-1">
+                    <template v-if="isServersLoading">Loading servers...</template>
+                    <template v-else>{{ game.servers.length }} servers</template>
+                  </div>
                 </CardHeader>
               </Card>
             </div>
@@ -429,104 +476,22 @@ const handleDisconnect = async () => {
           </div>
 
           <!-- View: Game Details (Server Select) -->
-          <div
+          <GameDetails
             v-else-if="currentView === 'details' && selectedGame"
-            class="max-w-5xl mx-auto flex flex-col"
+            :game="selectedGame!"
+            :servers="allServers.filter(s => s.tags?.includes(selectedGame!.tag))"
+            v-model="selectedServer"
+            :loading="isServersLoading"
+            :is-connected="isConnected"
+            :is-loading="isLoading"
+            :vpn-config="vpnConfig"
+            :game-ip-ranges="gameIpRanges"
+            @connect="handleConnect"
+            @disconnect="handleDisconnect"
           >
-            <div class="flex items-start gap-8">
-              <!-- Game Cover -->
-              <div
-                class="w-64 aspect-[3/4] rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 relative flex-shrink-0 shadow-2xl"
-              >
-                <img
-                  :src="selectedGame.image"
-                  class="w-full h-full object-cover opacity-80"
-                />
-                <div class="absolute bottom-5 left-5 right-5 z-10">
-                  <h1
-                    class="text-2xl font-bold leading-tight mb-2 text-white drop-shadow-md"
-                  >
-                    {{ selectedGame.name }}
-                  </h1>
-                </div>
-              </div>
-
-              <!-- Controls -->
-              <div class="flex-1 flex flex-col gap-6">
-                <!-- Config Info -->
-                <div
-                  class="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg"
-                >
-                  <h3 class="text-sm font-bold text-zinc-400 mb-2 uppercase">
-                    Current VPN Profile
-                  </h3>
-                  <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span class="text-zinc-600 block text-xs">Device</span>
-                      <span class="text-white font-mono">My Device</span>
-                    </div>
-                    <div>
-                      <span class="text-zinc-600 block text-xs"
-                        >Server Endpoint</span
-                      >
-                      <span class="text-white font-mono">{{
-                        vpnConfig?.serverEndpoint || "N/A"
-                      }}</span>
-                    </div>
-                    <div>
-                      <span class="text-zinc-600 block text-xs"
-                        >Assigned IP</span
-                      >
-                      <span class="text-white font-mono">{{
-                        vpnConfig?.address || "N/A"
-                      }}</span>
-                    </div>
-                    <div>
-                      <span class="text-zinc-600 block text-xs"
-                        >Allowed IPs</span
-                      >
-                      <span
-                        class="text-white font-mono truncate"
-                        :title="Array.from(gameIpRanges).join(',')"
-                      >
-                        {{ gameIpRanges.size }} Ranges Loaded
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Action Button -->
-                <div class="mt-auto">
-                  <Button
-                    v-if="!isConnected"
-                    @click="handleConnect"
-                    :disabled="isLoading"
-                    size="lg"
-                    class="w-full bg-white text-black hover:bg-zinc-200 border border-transparent font-bold h-14 text-base tracking-wide shadow-lg shadow-zinc-900/50 transition-all active:scale-[0.98]"
-                  >
-                    <Play v-if="!isLoading" class="w-4 h-4 mr-2 fill-current" />
-                    <div
-                      v-else
-                      class="w-4 h-4 mr-2 border-2 border-black/30 border-t-black rounded-full animate-spin"
-                    ></div>
-                    {{ isLoading ? "Starting..." : "Accelerate Now" }}
-                  </Button>
-
-                  <Button
-                    v-else
-                    @click="handleDisconnect"
-                    :disabled="isLoading"
-                    variant="destructive"
-                    size="lg"
-                    class="w-full h-14 text-base font-bold bg-zinc-900 border border-zinc-800 hover:bg-red-950 hover:border-red-900 hover:text-red-500 text-zinc-300 transition-all active:scale-[0.98]"
-                  >
-                    <StopCircle v-if="!isLoading" class="w-4 h-4 mr-2" />
-                    Stop Acceleration
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+            <template #play-icon><Play class="w-4 h-4 mr-2 fill-current" /></template>
+            <template #stop-icon><StopCircle class="w-4 h-4 mr-2" /></template>
+          </GameDetails>
         </div>
       </main>
     </div>

@@ -63,7 +63,7 @@ PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING 
 
   peers.forEach((p) => {
     config += `[Peer]
-# User: ${p.user_id} - Device: ${p.device_name}
+  // User: ${p.user_id} - Device: ${p.device_name}
 PublicKey = ${p.public_key}
 AllowedIPs = ${p.allowed_ip}/32
 
@@ -131,11 +131,18 @@ async function main() {
 
   if (!server) {
     console.log("Server not found in DB. Registering...");
+    // 取得 tags，從環境變數 VPN_SERVER_TAGS 解析
+    const tags = process.env.VPN_SERVER_TAGS
+      ? process.env.VPN_SERVER_TAGS.split(',').map(t => t.trim())
+      : [];
     const { error: insertError } = await supabase.from("servers").insert({
       ip: publicIp,
       region: "Auto-Detected",
-      // You might want to store the server's public key in DB too
-      // public_key: publicKey
+      public_key: publicKey,
+      port: 51820,
+      name: `VPN Node ${publicIp}`,
+      tags,
+      location: JSON.stringify([null, null]),
     });
 
     if (insertError) {

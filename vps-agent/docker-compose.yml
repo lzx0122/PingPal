@@ -21,6 +21,9 @@ services:
 
       # Health Check Port
       - PORT=3000
+
+      # VPN Server Tags (comma-separated, e.g., "asia,fast,vpn")
+      - VPN_SERVER_TAGS=${VPN_SERVER_TAGS:-}
     volumes:
       # Persistent Config (so we don't lose keys on reboot)
       - ./wg0.conf:/etc/wireguard/wg0.conf

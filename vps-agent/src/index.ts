@@ -46,8 +46,40 @@ function ensureKeys() {
 
 function getPublicIp(): string {
   if (process.env.PUBLIC_IP) return process.env.PUBLIC_IP;
-  // Simple fallback
   return runCommand("curl -s ifconfig.me");
+}
+
+function countryCodeToFlag(countryCode: string): string {
+  if (!countryCode || countryCode.length !== 2) return "🌍";
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map(char => 127397 + char.charCodeAt(0));
+  return String.fromCodePoint(...codePoints);
+}
+
+interface LocationData {
+  coordinates: [number, number];
+  countryCode: string;
+  countryName: string;
+}
+
+async function getLocationFromIp(ip: string): Promise<LocationData> {
+  // Only allow setting location via environment variables
+  if (process.env.LOCATION_LAT && process.env.LOCATION_LON && process.env.COUNTRY_CODE) {
+    console.log("Using manually configured location from environment variables");
+    return {
+      coordinates: [parseFloat(process.env.LOCATION_LON), parseFloat(process.env.LOCATION_LAT)],
+      countryCode: process.env.COUNTRY_CODE,
+      countryName: process.env.COUNTRY_NAME || "Unknown",
+    };
+  }
+  console.warn("No location environment variables set, using default location (0,0)");
+  return {
+    coordinates: [0, 0],
+    countryCode: "UN",
+    countryName: "Unknown",
+  };
 }
 
 function updateWireGuardConfig(peers: any[], privateKey: string) {
@@ -131,18 +163,20 @@ async function main() {
 
   if (!server) {
     console.log("Server not found in DB. Registering...");
-    // 取得 tags，從環境變數 VPN_SERVER_TAGS 解析
     const tags = process.env.VPN_SERVER_TAGS
       ? process.env.VPN_SERVER_TAGS.split(',').map(t => t.trim())
       : [];
+    const locationData = await getLocationFromIp(publicIp);
+    const flag = countryCodeToFlag(locationData.countryCode);
     const { error: insertError } = await supabase.from("servers").insert({
       ip: publicIp,
-      region: "Auto-Detected",
+      region: locationData.countryName,
       public_key: publicKey,
       port: 51820,
-      name: `VPN Node ${publicIp}`,
+      name: `${flag} VPN Node ${publicIp}`,
+      flag: flag,
       tags,
-      location: JSON.stringify([null, null]),
+      location: JSON.stringify(locationData.coordinates),
     });
 
     if (insertError) {

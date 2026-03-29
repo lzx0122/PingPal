@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import GameServerList from "./GameServerList.vue";
 import type { Game, Server } from "@/data/games";

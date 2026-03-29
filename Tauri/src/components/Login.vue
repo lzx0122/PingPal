@@ -1,6 +1,6 @@
-```
 <script setup lang="ts">
 import { ref } from "vue";
+import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/authStore";
 import { Zap, User, Lock } from "lucide-vue-next";
 
@@ -8,6 +8,7 @@ import { Zap, User, Lock } from "lucide-vue-next";
 // STATE
 // ----------------------------------------------------
 const authStore = useAuthStore();
+const router = useRouter();
 
 // Error State
 const errorMessage = ref("");
@@ -15,11 +16,6 @@ const errorMessage = ref("");
 // Refs for Login
 const loginEmail = ref("");
 const loginPassword = ref("");
-
-// Define emits for App.vue communication
-const emit = defineEmits<{
-  (e: "login-success"): void;
-}>();
 
 // ----------------------------------------------------
 // METHODS
@@ -43,7 +39,7 @@ const handleLogin = async () => {
       errorMessage.value = "Incorrect username or password";
       loginPassword.value = "";
     } else {
-      emit("login-success"); // Notify parent to change view
+      await router.replace({ name: "library" });
     }
   } catch (error: any) {
     console.error("Login error:", error);

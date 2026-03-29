@@ -10,12 +10,44 @@ export const useVpnStore = defineStore("vpn", () => {
 
   const isConfigured = computed(() => !!profileId.value && !!privateKey.value);
 
+  /** One-time migration from legacy `localStorage.vpn_config` (removed after success). */
+  async function migrateLegacyLocalStorage() {
+    if (typeof localStorage === "undefined") return;
+    const raw = localStorage.getItem("vpn_config");
+    if (!raw) return;
+    if (profileId.value && privateKey.value) {
+      localStorage.removeItem("vpn_config");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as {
+        profileId?: string;
+        privateKey?: string;
+        serverEndpoint?: string;
+        address?: string;
+      };
+      if (parsed.profileId && parsed.privateKey) {
+        await saveConfig(
+          parsed.profileId,
+          parsed.privateKey,
+          parsed.serverEndpoint ?? "",
+          parsed.address ?? "",
+        );
+      }
+    } catch {
+      /* drop corrupt legacy */
+    } finally {
+      localStorage.removeItem("vpn_config");
+    }
+  }
+
   async function loadState() {
     profileId.value = (await getItem<string>("vpn_profile_id")) || null;
     privateKey.value = (await getItem<string>("vpn_private_key")) || null;
     serverEndpoint.value =
       (await getItem<string>("vpn_server_endpoint")) || null;
     address.value = (await getItem<string>("vpn_address")) || null;
+    await migrateLegacyLocalStorage();
   }
 
   async function saveConfig(

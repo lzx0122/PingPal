@@ -6,15 +6,17 @@ const mockDelete = vi.fn();
 const mockSave = vi.fn();
 const mockClear = vi.fn();
 
+const mockStoreInstance = {
+  set: mockSet,
+  get: mockGet,
+  delete: mockDelete,
+  save: mockSave,
+  clear: mockClear,
+};
+
 vi.mock("@tauri-apps/plugin-store", () => {
   return {
-    Store: vi.fn(() => ({
-      set: mockSet,
-      get: mockGet,
-      delete: mockDelete,
-      save: mockSave,
-      clear: mockClear,
-    })),
+    load: vi.fn(() => Promise.resolve(mockStoreInstance)),
   };
 });
 

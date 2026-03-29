@@ -1,6 +1,6 @@
 ---
 name: nigping-project
-description: NigPing monorepo layout, tech stack, and pnpm commands. Use for any task that needs correct paths or how to run/build each package.
+description: NigPing monorepo layout, tech stack, and pnpm commands. Tauri desktop UI is Vue 3; primary component kit is shadcn-vue under Tauri/src/components/ui, with some custom native form/titlebar and ECharts for maps. Use for paths, commands, and UI stack context.
 ---
 
 # NigPing 專案脈絡
@@ -11,7 +11,7 @@ description: NigPing monorepo layout, tech stack, and pnpm commands. Use for any
 
 | 路徑 | 角色 | 技術 |
 |------|------|------|
-| `Tauri/` | 桌面客戶端（主 UI） | Vue 3、Vite、TypeScript、Pinia、Vitest、Tailwind、Tauri 2 |
+| `Tauri/` | 桌面客戶端（主 UI） | Vue 3、Vite、TypeScript、Pinia、Vitest、Tailwind、**shadcn-vue（主元件庫）**、ECharts（地圖）、Tauri 2 |
 | `Tauri/src-tauri/` | Tauri / Rust 後端 | Rust（Tauri、Windows 網路等） |
 | `backend/` | API 服務 | Hono、Node、TypeScript、Supabase |
 | `backend/admin-ui/` | 後台小面板 | Vue 3、Vite、TypeScript |
@@ -44,8 +44,14 @@ description: NigPing monorepo layout, tech stack, and pnpm commands. Use for any
 - 開發：`pnpm dev`
 - 建置：`pnpm build`
 
+## Tauri 前端 UI（shadcn 為主）
+
+- **主元件庫**：**shadcn-vue**（[shadcn-vue](https://www.shadcn-vue.com/)，概念同 [shadcn/ui](https://ui.shadcn.com/)），程式在 **`Tauri/src/components/ui/`**（如 `button`、`card`、`dialog`、`popover`、`command`）；底層多為 **reka-ui** primitive + Tailwind。
+- **例外（非 shadcn 元件）**：`Login.vue` 登入表單為 **原生 `<input>` / `<button>` + 自訂樣式**；`VPNRegistration` 的裝置名稱輸入為原生 input；`TitleBar` 視窗控制鈕、`ServerDetection` 部分為原生 button；**`ServerGlobe.vue` 使用 ECharts + vue-echarts**（圖表不屬 shadcn 範疇）。
+- 新增或調整 UI 時，**優先**使用既有 `components/ui` 與 Tailwind 慣例；若表單需與主題一致，可從 shadcn-vue **新增** `Input`、`Label` 等（目前 repo 尚未包含這些檔案），避免再引入另一套元件庫。
+
 ## Agent 注意事項
 
-- 前端 UI 以 **Vue 3** 為主，不是 React。
+- 前端 UI 以 **Vue 3** 為主，不是 React；桌面客戶端 **以 shadcn-vue 為主**，登入／少數區塊為自訂原生元素、地圖為 ECharts，見上節。
 - 後端為 **Hono**，不是 Express；模式可類比一般 Node HTTP 服務，但 API 風格以 Hono 為準。
 - 專案內 **未使用 ClickHouse**；分析型資料庫相關 skill 僅供參考，勿假設 repo 已整合。

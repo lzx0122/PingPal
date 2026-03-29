@@ -128,7 +128,7 @@ export function useVpnProfile() {
   const connectToServer = async (
     profileId: string,
     serverIp: string,
-    endpointPort?: number,
+    _endpointPort?: number,
   ) => {
     isLoading.value = true;
     error.value = null;

@@ -8,7 +8,7 @@
 
     <div class="p-6 bg-zinc-900 border border-zinc-800 rounded-xl">
       <p class="text-zinc-400 text-sm">
-        Settings panel configuration mapped to Vue Router
+        Application settings (placeholder).
       </p>
     </div>
   </div>

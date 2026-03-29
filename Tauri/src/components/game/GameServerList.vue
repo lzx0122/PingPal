@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, type PropType } from "vue";
+import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import type { Server, Game } from "@/data/games";
 

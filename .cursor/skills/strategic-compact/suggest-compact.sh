@@ -27,9 +27,16 @@
 # - Transitioning from research/exploration to implementation
 # - Plan has been finalized
 
-# Track tool call count (increment in a temp file)
-COUNTER_FILE="/tmp/claude-tool-count-$$"
+# Track tool call count (increment in a temp file).
+# Use PPID so repeated hook invocations (new subshells) share one counter; $$ changes every run.
+TMPDIR="${TMPDIR:-/tmp}"
+COUNTER_FILE="${TMPDIR}/claude-tool-count-${PPID:-$$}"
 THRESHOLD=${COMPACT_THRESHOLD:-50}
+
+# Drop abandoned counters (e.g. session ended) so /tmp does not accumulate forever.
+if command -v find >/dev/null 2>&1; then
+  find "$TMPDIR" -maxdepth 1 -type f -name 'claude-tool-count-*' -mtime +7 -delete 2>/dev/null || true
+fi
 
 # Initialize or increment counter
 if [ -f "$COUNTER_FILE" ]; then

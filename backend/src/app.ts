@@ -345,8 +345,14 @@ app.get("/api/servers", async (c) => {
 
     // Transform to match frontend expectations
     const servers = (data || []).map((server: any) => ({
-      ip: server.ip,
+      id: server.id,
+      name: server.name || `Server ${server.ip}`,
+      flag: server.flag || "🌍",
       region: server.region,
+      endpoint: server.ip,
+      publicKey: server.public_key || "",
+      location: server.location ? JSON.parse(server.location) : [0, 0],
+      tags: server.tags || [],
       addedAt: server.added_at,
     }));
 

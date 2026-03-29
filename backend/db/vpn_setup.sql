@@ -90,6 +90,7 @@ DECLARE
     octet INT;
     existing_octets INT[];
     v_user_id UUID;
+    server_public_key TEXT;
 BEGIN
     -- Verify profile belongs to calling user
     SELECT user_id INTO v_user_id
@@ -102,6 +103,15 @@ BEGIN
 
     IF v_user_id != auth.uid() THEN
         RETURN jsonb_build_object('success', false, 'error', 'Unauthorized');
+    END IF;
+
+    -- Get server public key from servers table
+    SELECT public_key INTO server_public_key
+    FROM servers
+    WHERE ip = p_server_ip;
+
+    IF server_public_key IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Server not found or public key not configured');
     END IF;
 
     -- Check if allocation already exists for this profile + server
@@ -119,7 +129,7 @@ BEGIN
             'success', true,
             'assigned_ip', host(new_ip) || '/32',
             'server_endpoint', p_server_ip || ':51820',
-            'server_public_key', 'SERVER_PUB_KEY_PLACEHOLDER',
+            'server_public_key', server_public_key,
             'allowed_ips', '0.0.0.0/0'
         );
     END IF;
@@ -155,7 +165,7 @@ BEGIN
         'success', true,
         'assigned_ip', host(new_ip) || '/32',
         'server_endpoint', p_server_ip || ':51820',
-        'server_public_key', 'SERVER_PUB_KEY_PLACEHOLDER',
+        'server_public_key', server_public_key,
         'allowed_ips', '0.0.0.0/0'
     );
 EXCEPTION WHEN OTHERS THEN

@@ -217,6 +217,12 @@ const handleConnect = async () => {
       selectedServer.value.endpoint.split(":")[0],
     );
 
+    console.log("VPN connect response:", {
+      serverPublicKey: serverConfig?.server_public_key,
+      serverEndpoint: serverConfig?.server_endpoint,
+      assignedIp: serverConfig?.assigned_ip,
+    });
+
     const configContent = getWgConfig(serverConfig);
     const ipv4 = serverConfig.assigned_ip.split("/")[0];
 

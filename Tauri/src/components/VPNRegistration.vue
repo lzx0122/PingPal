@@ -2,6 +2,8 @@
 import { ref, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useVpnProfile } from "@/composables/useVpnProfile";
 import { useVpnStore } from "@/stores/vpnStore";
 import { apiFetch } from "@/lib/apiClient";
@@ -104,18 +106,21 @@ async function handleRegister() {
       <!-- Device Name Input -->
       <div class="space-y-2">
         <div class="flex items-center justify-between">
-          <label
-            class="text-xs uppercase font-bold text-zinc-500 tracking-wider"
-            >Device Name</label
+          <Label
+            for="device-name"
+            class="text-xs font-bold uppercase tracking-wider text-zinc-500"
           >
+            Device Name
+          </Label>
           <span class="text-xs text-zinc-600">{{ deviceCount }}/5 devices</span>
         </div>
-        <input
+        <Input
+          id="device-name"
           v-model="deviceName"
           type="text"
           placeholder="e.g. My Gaming PC"
           :disabled="isLoadingDeviceName"
-          class="w-full bg-black border border-zinc-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white transition-colors disabled:opacity-50"
+          class="h-12 w-full rounded-lg border-zinc-800 bg-black px-4 py-3 text-white shadow-none placeholder:text-zinc-600 focus-visible:border-white focus-visible:ring-white/20 disabled:opacity-50"
         />
         <p v-if="isLoadingDeviceName" class="text-xs text-zinc-500 italic">
           Detecting device name...

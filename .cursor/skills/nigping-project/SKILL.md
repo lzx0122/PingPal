@@ -1,6 +1,6 @@
 ---
 name: nigping-project
-description: NigPing monorepo layout, tech stack, and pnpm commands. Tauri desktop UI is Vue 3; primary component kit is shadcn-vue under Tauri/src/components/ui, with some custom native form/titlebar and ECharts for maps. Use for paths, commands, and UI stack context.
+description: NigPing monorepo layout, tech stack, and pnpm commands. Tauri desktop UI is Vue 3; shadcn-vue under Tauri/src/components/ui (incl. input/label); titlebar and some controls are native; ECharts for maps. Use for paths, commands, and UI stack context.
 ---
 
 # NigPing 專案脈絡
@@ -46,12 +46,12 @@ description: NigPing monorepo layout, tech stack, and pnpm commands. Tauri deskt
 
 ## Tauri 前端 UI（shadcn 為主）
 
-- **主元件庫**：**shadcn-vue**（[shadcn-vue](https://www.shadcn-vue.com/)，概念同 [shadcn/ui](https://ui.shadcn.com/)），程式在 **`Tauri/src/components/ui/`**（如 `button`、`card`、`dialog`、`popover`、`command`）；底層多為 **reka-ui** primitive + Tailwind。
-- **例外（非 shadcn 元件）**：`Login.vue` 登入表單為 **原生 `<input>` / `<button>` + 自訂樣式**；`VPNRegistration` 的裝置名稱輸入為原生 input；`TitleBar` 視窗控制鈕、`ServerDetection` 部分為原生 button；**`ServerGlobe.vue` 使用 ECharts + vue-echarts**（圖表不屬 shadcn 範疇）。
-- 新增或調整 UI 時，**優先**使用既有 `components/ui` 與 Tailwind 慣例；若表單需與主題一致，可從 shadcn-vue **新增** `Input`、`Label` 等（目前 repo 尚未包含這些檔案），避免再引入另一套元件庫。
+- **主元件庫**：**shadcn-vue**（[shadcn-vue](https://www.shadcn-vue.com/)，概念同 [shadcn/ui](https://ui.shadcn.com/)），程式在 **`Tauri/src/components/ui/`**（如 `button`、`card`、`dialog`、`input`、`label`、`popover`、`command`）；`Button` 底層為 **reka-ui** `Primitive` + Tailwind。
+- **例外（非 shadcn 元件）**：`TitleBar` 視窗控制鈕、`ServerDetection` 部分為原生 button；**`ServerGlobe.vue` 使用 ECharts + vue-echarts**（圖表不屬 shadcn 範疇）。
+- 新增或調整 UI 時，**優先**使用既有 `components/ui` 與 Tailwind 慣例，避免再引入另一套元件庫。
 
 ## Agent 注意事項
 
-- 前端 UI 以 **Vue 3** 為主，不是 React；桌面客戶端 **以 shadcn-vue 為主**，登入／少數區塊為自訂原生元素、地圖為 ECharts，見上節。
+- 前端 UI 以 **Vue 3** 為主，不是 React；桌面客戶端 **以 shadcn-vue 為主**（登入與 VPN 註冊已用 `Input`／`Label`／`Button`），標題列與少數按鈕為原生、地圖為 ECharts，見上節。
 - 後端為 **Hono**，不是 Express；模式可類比一般 Node HTTP 服務，但 API 風格以 Hono 為準。
 - 專案內 **未使用 ClickHouse**；分析型資料庫相關 skill 僅供參考，勿假設 repo 已整合。

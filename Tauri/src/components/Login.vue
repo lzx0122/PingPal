@@ -1,26 +1,22 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { Loader2, User, Lock, Zap } from "lucide-vue-next";
 import { useAuthStore } from "../stores/authStore";
-import { Zap, User, Lock } from "lucide-vue-next";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
-// ----------------------------------------------------
-// STATE
-// ----------------------------------------------------
 const authStore = useAuthStore();
 const router = useRouter();
 
-// Error State
 const errorMessage = ref("");
-
-// Refs for Login
 const loginEmail = ref("");
 const loginPassword = ref("");
-
-// ----------------------------------------------------
-// METHODS
-// ----------------------------------------------------
 const loading = ref(false);
+
+const inputClass =
+  "h-11 rounded-[10px] border-[1.5px] border-zinc-800 bg-zinc-950 px-4 py-2.5 text-[0.9375rem] text-white shadow-none placeholder:text-zinc-600 focus-visible:border-white focus-visible:bg-black focus-visible:ring-[3px] focus-visible:ring-white/10";
 
 const handleLogin = async () => {
   errorMessage.value = "";
@@ -51,74 +47,85 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <div class="login-container">
-    <!-- Animated background -->
+  <div class="login-container dark">
     <div class="bg-grid"></div>
     <div class="bg-gradient"></div>
 
-    <!-- Login card -->
     <div class="login-card">
-      <!-- Logo -->
       <div class="logo-section">
         <div class="logo-icon">
-          <Zap class="w-8 h-8 fill-current" />
+          <Zap class="h-8 w-8 fill-current" />
         </div>
         <h1 class="logo-text">NigPing</h1>
         <p class="logo-subtitle">Game Accelerator</p>
       </div>
 
-      <!-- Form -->
-      <form @submit.prevent="handleLogin" class="login-form">
-        <!-- Username field -->
-        <div class="form-group">
-          <label for="username" class="form-label">
-            <User class="w-4 h-4" />
+      <form
+        @submit.prevent="handleLogin"
+        class="login-form flex flex-col gap-6"
+      >
+        <div class="flex flex-col gap-2.5">
+          <Label
+            for="username"
+            class="flex items-center gap-2 text-[0.8125rem] font-semibold uppercase tracking-wider text-zinc-400"
+          >
+            <User class="h-4 w-4" />
             <span>Username</span>
-          </label>
-          <input
+          </Label>
+          <Input
             id="username"
             v-model="loginEmail"
             type="text"
             placeholder="Enter username"
             required
             autocomplete="username"
-            class="form-input"
             :disabled="loading"
+            :class="inputClass"
           />
         </div>
 
-        <!-- Password field -->
-        <div class="form-group">
-          <label for="password" class="form-label">
-            <Lock class="w-4 h-4" />
+        <div class="flex flex-col gap-2.5">
+          <Label
+            for="password"
+            class="flex items-center gap-2 text-[0.8125rem] font-semibold uppercase tracking-wider text-zinc-400"
+          >
+            <Lock class="h-4 w-4" />
             <span>Password</span>
-          </label>
-          <input
+          </Label>
+          <Input
             id="password"
             v-model="loginPassword"
             type="password"
             placeholder="Enter password"
             required
             autocomplete="current-password"
-            class="form-input"
             :disabled="loading"
+            :class="inputClass"
           />
         </div>
 
-        <!-- Error message -->
-        <div v-if="errorMessage" class="error-msg">
-          <div class="error-icon">!</div>
+        <div
+          v-if="errorMessage"
+          class="error-msg flex items-center gap-3 rounded-[10px] border border-red-500/30 bg-red-500/10 px-4 py-3.5 text-sm text-red-300"
+        >
+          <div
+            class="error-icon flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500/20 text-xs font-bold"
+          >
+            !
+          </div>
           <span>{{ errorMessage }}</span>
         </div>
 
-        <!-- Submit button -->
-        <button type="submit" :disabled="loading" class="btn-submit">
-          <div v-if="loading" class="loading-spinner"></div>
+        <Button
+          type="submit"
+          :disabled="loading"
+          class="mt-2 h-12 w-full rounded-[10px] border-0 bg-white text-base font-bold tracking-wide text-black shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:bg-zinc-100 hover:shadow-[0_10px_30px_rgba(255,255,255,0.25)] active:translate-y-0 disabled:opacity-70"
+        >
+          <Loader2 v-if="loading" class="mr-2 h-5 w-5 animate-spin" />
           <span v-else>Login</span>
-        </button>
+        </Button>
       </form>
 
-      <!-- Footer -->
       <div class="login-footer">
         <div class="footer-dot"></div>
         <span class="footer-text">v0.1.0 Beta</span>
@@ -137,10 +144,10 @@ const handleLogin = async () => {
   justify-content: center;
   background: #000;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-/* Animated grid background */
 .bg-grid {
   position: absolute;
   inset: 0;
@@ -161,7 +168,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Gradient overlay */
 .bg-gradient {
   position: absolute;
   inset: 0;
@@ -173,7 +179,6 @@ const handleLogin = async () => {
   pointer-events: none;
 }
 
-/* Login card */
 .login-card {
   position: relative;
   z-index: 10;
@@ -200,7 +205,6 @@ const handleLogin = async () => {
   }
 }
 
-/* Logo section */
 .logo-section {
   text-align: center;
   margin-bottom: 2.5rem;
@@ -253,11 +257,7 @@ const handleLogin = async () => {
   letter-spacing: 0.05em;
 }
 
-/* Form */
 .login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
   animation: form-fade-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
 }
 
@@ -272,61 +272,7 @@ const handleLogin = async () => {
   }
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-}
-
-.form-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #a1a1aa;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.875rem 1rem;
-  background: #18181b;
-  border: 1.5px solid #27272a;
-  border-radius: 10px;
-  color: #fff;
-  font-size: 0.9375rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  outline: none;
-}
-
-.form-input::placeholder {
-  color: #52525b;
-}
-
-.form-input:focus {
-  border-color: #fff;
-  background: #000;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
-}
-
-.form-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Error message */
 .error-msg {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 10px;
-  color: #fca5a5;
-  font-size: 0.875rem;
   animation: error-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
@@ -350,68 +296,6 @@ const handleLogin = async () => {
   }
 }
 
-.error-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: rgba(239, 68, 68, 0.2);
-  border-radius: 50%;
-  font-weight: 700;
-  font-size: 0.75rem;
-  flex-shrink: 0;
-}
-
-/* Submit button */
-.btn-submit {
-  width: 100%;
-  padding: 1rem;
-  background: #fff;
-  color: #000;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-top: 0.5rem;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
-  letter-spacing: 0.02em;
-}
-
-.btn-submit:hover:not(:disabled) {
-  background: #f4f4f5;
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(255, 255, 255, 0.25);
-}
-
-.btn-submit:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.btn-submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(0, 0, 0, 0.2);
-  border-top-color: #000;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  margin: 0 auto;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Footer */
 .login-footer {
   display: flex;
   align-items: center;
@@ -458,7 +342,6 @@ const handleLogin = async () => {
   letter-spacing: 0.05em;
 }
 
-/* Responsive */
 @media (max-width: 480px) {
   .login-card {
     margin: 1rem;

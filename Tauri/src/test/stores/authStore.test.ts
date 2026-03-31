@@ -50,6 +50,7 @@ describe("Auth Store", () => {
     const result = await auth.login("test_user", "password123");
 
     expect(result).toBe(true);
+    expect(auth.loginError).toBeNull();
     expect(auth.token).toBe("test_token");
     expect(auth.username).toBe("test_user");
     expect(auth.isAuthenticated).toBe(true);
@@ -63,12 +64,14 @@ describe("Auth Store", () => {
     const auth = useAuthStore();
     mockFetch.mockResolvedValueOnce({
       ok: false,
+      json: async () => ({ error: "Invalid credentials" }),
     });
 
     const result = await auth.login("user", "wrong_pass");
 
     expect(result).toBe(false);
     expect(auth.token).toBeNull();
+    expect(auth.loginError).toBe("Invalid credentials");
     expect(tauriStore.setItem).not.toHaveBeenCalled();
   });
 
@@ -76,11 +79,13 @@ describe("Auth Store", () => {
     const auth = useAuthStore();
     auth.token = "some_token";
     auth.username = "user";
+    auth.loginError = "x";
 
     await auth.logout();
 
     expect(auth.token).toBeNull();
     expect(auth.username).toBeNull();
+    expect(auth.loginError).toBeNull();
     expect(auth.isAuthenticated).toBe(false);
 
     expect(tauriStore.removeItem).toHaveBeenCalledWith("auth_token");

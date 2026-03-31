@@ -1,28 +1,40 @@
-import { useAuthStore } from "../stores/authStore";
+import { fetchJson } from "./http";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+export type ApiFetchOptions = RequestInit & {
+  public?: boolean;
+};
+
+type AuthProvider = {
+  getAuthHeaders: () => Record<string, string>;
+  logout: () => void | Promise<void>;
+};
+
+let authProvider: AuthProvider | null = null;
+
+export function configureApiClient(provider: AuthProvider) {
+  authProvider = provider;
+}
 
 /**
- * Centralized API request wrapper.
- * Automatically attaches Authorization header and logs out on 401 response.
+ * Centralized API requests: same base URL + JSON defaults as the rest of the app.
+ * Authenticated calls attach Bearer; 401 clears session unless `public: true`.
  */
 export async function apiFetch(
   path: string,
-  options: RequestInit = {},
+  options: ApiFetchOptions = {},
 ): Promise<Response> {
-  const authStore = useAuthStore();
+  const { public: isPublic = false, ...init } = options;
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
+  const response = await fetchJson(path, {
+    ...init,
     headers: {
-      "Content-Type": "application/json",
-      ...authStore.getAuthHeaders(),
-      ...(options.headers as Record<string, string>),
+      ...(isPublic ? {} : authProvider?.getAuthHeaders() ?? {}),
+      ...(init.headers as Record<string, string>),
     },
   });
 
-  if (response.status === 401) {
-    authStore.logout();
+  if (response.status === 401 && !isPublic) {
+    void authProvider?.logout();
     throw new Error("Session expired. Please login again.");
   }
 

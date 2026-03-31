@@ -20,6 +20,8 @@ const inputClass =
 
 const handleLogin = async () => {
   errorMessage.value = "";
+  authStore.clearLoginError();
+
   if (!loginEmail.value || !loginPassword.value) {
     errorMessage.value = "Please enter username and password";
     return;
@@ -32,14 +34,12 @@ const handleLogin = async () => {
       loginPassword.value,
     );
     if (!success) {
-      errorMessage.value = "Incorrect username or password";
+      errorMessage.value =
+        authStore.loginError ?? "Incorrect username or password";
       loginPassword.value = "";
     } else {
       await router.replace({ name: "library" });
     }
-  } catch (error: any) {
-    console.error("Login error:", error);
-    errorMessage.value = error.message || "Login failed, please try again later.";
   } finally {
     loading.value = false;
   }

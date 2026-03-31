@@ -1,17 +1,15 @@
 import { ref, computed } from "vue";
+import { API_BASE_URL } from "@/lib/apiBase";
 
 const token = ref<string | null>(localStorage.getItem("auth_token"));
 const username = ref<string | null>(localStorage.getItem("username"));
-
-// API URL from environment variable, fallback to localhost
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export function useAuth() {
   const isAuthenticated = computed(() => !!token.value);
 
   async function login(user: string, pass: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user, password: pass }),

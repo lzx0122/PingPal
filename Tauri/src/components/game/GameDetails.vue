@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
+import ServerGlobe from "@/components/ServerGlobe.vue";
 import GameServerList from "./GameServerList.vue";
 import type { Game, Server } from "@/data/games";
+import { useClientGeo } from "@/composables/useClientGeo";
 
 const props = defineProps<{
   game: Game;
@@ -24,6 +26,18 @@ const selectedServer = computed({
   get: () => props.modelValue,
   set: (val: Server | null) => emit("update:modelValue", val),
 });
+
+const vpnMapLocation = computed((): [number, number] | null => {
+  const s = selectedServer.value;
+  if (!s?.location?.length) return null;
+  const [lon, lat] = s.location;
+  if (lon === 0 && lat === 0) return null;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return [lon, lat];
+});
+
+const { clientLocation, clientLabel, loading: clientGeoLoading, error: clientGeoError } =
+  useClientGeo();
 </script>
 
 <template>
@@ -47,6 +61,15 @@ const selectedServer = computed({
         :servers="servers"
         v-model="selectedServer"
         :loading="loading"
+      />
+
+      <ServerGlobe
+        :vpn-location="vpnMapLocation"
+        :region-label="selectedServer?.region ?? ''"
+        :client-location="clientLocation"
+        :client-label="clientLabel"
+        :client-geo-loading="clientGeoLoading"
+        :client-geo-error="clientGeoError"
       />
 
       <!-- Config Info -->

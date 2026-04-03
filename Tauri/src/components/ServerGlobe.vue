@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import VChart from "vue-echarts";
 import { use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
-import { MapChart, ScatterChart, EffectScatterChart } from "echarts/charts";
+import {
+  MapChart,
+  ScatterChart,
+  EffectScatterChart,
+  LinesChart,
+} from "echarts/charts";
 import {
   TitleComponent,
   TooltipComponent,
@@ -12,156 +17,372 @@ import {
 import * as echarts from "echarts/core";
 import worldMapData from "@/assets/world.json";
 
-// 註冊必要的 ECharts 組件
 use([
   CanvasRenderer,
   MapChart,
   ScatterChart,
   EffectScatterChart,
+  LinesChart,
   TitleComponent,
   TooltipComponent,
   GeoComponent,
 ]);
 
-const props = defineProps<{
-  markers: { location: [number, number]; size: number }[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    vpnLocation: [number, number] | null;
+    regionLabel?: string;
+    clientLocation: [number, number] | null;
+    clientLabel?: string;
+    clientGeoLoading?: boolean;
+    clientGeoError?: string | null;
+  }>(),
+  {
+    regionLabel: "",
+    clientLabel: "",
+    clientGeoLoading: false,
+    clientGeoError: null,
+  },
+);
 
-const serverLocation = computed(() => {
-  if (props.markers.length === 0) return null;
-  return props.markers[0].location;
+const hasVpnPoint = computed(() => {
+  const loc = props.vpnLocation;
+  if (!loc) return false;
+  const [lon, lat] = loc;
+  if (lon === 0 && lat === 0) return false;
+  return Number.isFinite(lon) && Number.isFinite(lat);
 });
 
-// 追蹤當前縮放等級
-const currentZoom = ref(6);
+const hasClientPoint = computed(() => {
+  const loc = props.clientLocation;
+  if (!loc) return false;
+  const [lon, lat] = loc;
+  if (lon === 0 && lat === 0) return false;
+  return Number.isFinite(lon) && Number.isFinite(lat);
+});
 
-// 註冊世界地圖
+const vpnLngLat = computed((): [number, number] | null => {
+  if (!hasVpnPoint.value || !props.vpnLocation) return null;
+  return props.vpnLocation;
+});
+
+const clientLngLat = computed((): [number, number] | null => {
+  if (!hasClientPoint.value || !props.clientLocation) return null;
+  return props.clientLocation;
+});
+
+const mapCenterAndZoom = computed(() => {
+  const v = vpnLngLat.value;
+  const u = clientLngLat.value;
+  if (v && u) {
+    const [vlon, vlat] = v;
+    const [ulon, ulat] = u;
+    return {
+      center: [(vlon + ulon) / 2, (vlat + ulat) / 2] as [number, number],
+      zoom: 2.2,
+    };
+  }
+  if (v) return { center: v, zoom: 4 };
+  if (u) return { center: u, zoom: 4 };
+  return { center: [120.5, 24.0] as [number, number], zoom: 1.15 };
+});
+
+const prefersReducedMotion = ref(
+  typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+);
+
 onMounted(() => {
   echarts.registerMap("world", worldMapData as any);
+  const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+  prefersReducedMotion.value = mql.matches;
+  const onMqlChange = () => {
+    prefersReducedMotion.value = mql.matches;
+  };
+  mql.addEventListener("change", onMqlChange);
+  onUnmounted(() => mql.removeEventListener("change", onMqlChange));
 });
 
-// ECharts 配置選項
+function formatCoordPair(lat: number, lng: number): string {
+  const ns = lat >= 0 ? "N" : "S";
+  const ew = lng >= 0 ? "E" : "W";
+  return `${Math.abs(lat).toFixed(2)}°${ns}, ${Math.abs(lng).toFixed(2)}°${ew}`;
+}
+
 const option = computed(() => {
-  const markerData = props.markers.map((m) => ({
-    name: "Server",
-    value: [m.location[1], m.location[0]], // ECharts uses [longitude, latitude]
-  }));
+  const v = vpnLngLat.value;
+  const u = clientLngLat.value;
+  const { center, zoom } = mapCenterAndZoom.value;
 
-  // 計算基於縮放等級的標記大小
-  const baseMarkerSize = 12; // 基礎標記大小（減小）
-  const baseEffectSize = 10; // 基礎效果大小（減小）
-  const markerSize = baseMarkerSize / Math.sqrt(currentZoom.value);
-  const effectSize = baseEffectSize / Math.sqrt(currentZoom.value);
+  const vpnMarker = v ? [{ name: "VPN", value: v as [number, number] }] : [];
+  const clientMarker = u ? [{ name: "You", value: u as [number, number] }] : [];
 
-  return {
-    backgroundColor: "transparent",
-    geo: {
-      map: "world",
-      roam: true, // 啟用縮放和平移
-      center: [120.5161, 24.0518], // 初始視角中心點：台灣彰化 [經度, 緯度]
-      zoom: 6, // 初始縮放倍率（更近的視角）
-      scaleLimit: {
-        min: 1, // 最小縮放倍率
-        max: 15, // 最大縮放倍率（增加到 15x）
+  const lineData =
+    v && u
+      ? [
+          {
+            coords: [u, v] as [[number, number], [number, number]],
+          },
+        ]
+      : [];
+
+  const vpnPinSize = 22;
+  const vpnRippleSize = 14;
+  const clientDiamondSize = 20;
+
+  const pointLabel = {
+    show: true,
+    position: "top" as const,
+    distance: 6,
+    color: "#e4e4e7",
+    fontSize: 12,
+    fontWeight: 600,
+    formatter: "{b}",
+    textBorderColor: "rgba(0,0,0,0.65)",
+    textBorderWidth: 2,
+  };
+
+  const series: object[] = [];
+
+  if (lineData.length > 0) {
+    series.push({
+      type: "lines",
+      coordinateSystem: "geo",
+      zlevel: 1,
+      data: lineData,
+      lineStyle: {
+        color: "#71717a",
+        width: 1.5,
+        opacity: 0.75,
       },
+      silent: true,
+    });
+  }
+
+  if (clientMarker.length > 0) {
+    series.push({
+      type: "scatter",
+      coordinateSystem: "geo",
+      data: clientMarker,
+      symbol: "diamond",
+      symbolSize: clientDiamondSize,
+      label: pointLabel,
       itemStyle: {
-        areaColor: "#3f3f46", // 提亮為 zinc-700，更容易看清楚
-        borderColor: "#71717a", // 提亮為 zinc-500，邊界更明顯
-        borderWidth: 1.2, // 增加邊界寬度
+        color: "rgba(56, 189, 248, 0.92)",
+        borderColor: "#e0f2fe",
+        borderWidth: 2,
+        shadowBlur: 12,
+        shadowColor: "rgba(14, 165, 233, 0.55)",
       },
       emphasis: {
-        disabled: false, // 啟用 hover 效果
+        scale: 1.12,
         itemStyle: {
-          areaColor: "#52525b", // hover 時稍微提亮
+          borderWidth: 2,
+          shadowBlur: 18,
         },
       },
-      select: {
-        disabled: true, // 禁用選擇
+      zlevel: 5,
+    });
+  }
+
+  if (vpnMarker.length > 0) {
+    series.push({
+      type: "scatter",
+      coordinateSystem: "geo",
+      data: vpnMarker,
+      symbol: "pin",
+      symbolSize: vpnPinSize,
+      label: { ...pointLabel, color: "#fef3c7" },
+      itemStyle: {
+        color: "#f59e0b",
+        borderColor: "#fde68a",
+        borderWidth: 1,
+        shadowBlur: 16,
+        shadowColor: "rgba(245, 158, 11, 0.65)",
       },
-      regions: [
-        // 高亮台灣區域
-        {
-          name: "Taiwan",
-          itemStyle: {
-            areaColor: "#52525b", // zinc-600，讓台灣稍微亮一點
-            borderColor: "#a1a1aa", // zinc-400
-            borderWidth: 1.5,
-          },
-        },
-      ],
-    },
-    series: [
-      {
-        type: "scatter",
-        coordinateSystem: "geo",
-        data: markerData,
-        symbolSize: markerSize, // 動態標記尺寸，根據縮放調整
-        symbol: "pin",
-        itemStyle: {
-          color: "#fbbf24", // 使用更鮮豔的 amber-400
-          shadowBlur: 15,
-          shadowColor: "#fbbf24",
-        },
-        zlevel: 2,
+      emphasis: {
+        scale: 1.08,
       },
-      {
+      zlevel: 2,
+    });
+    if (!prefersReducedMotion.value) {
+      series.push({
         type: "effectScatter",
         coordinateSystem: "geo",
-        data: markerData,
-        symbolSize: effectSize, // 動態效果尺寸，根據縮放調整
+        data: vpnMarker,
+        symbol: "pin",
+        symbolSize: vpnRippleSize,
         showEffectOn: "render",
         rippleEffect: {
           brushType: "stroke",
-          scale: 5, // 增大波紋範圍
-          period: 3, // 加快動畫速度
+          scale: 4.2,
+          period: 3.5,
         },
         itemStyle: {
           color: "#fbbf24",
-          shadowBlur: 20,
+          opacity: 0.95,
+          shadowBlur: 18,
           shadowColor: "#fbbf24",
         },
         zlevel: 3,
+      });
+    }
+  }
+
+  return {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(24, 24, 27, 0.92)",
+      borderColor: "#3f3f46",
+      textStyle: { color: "#e4e4e7", fontSize: 12 },
+      formatter: (p: {
+        data?: { name?: string; value?: [number, number] };
+      }) => {
+        const d = p.data;
+        if (!d?.value) return "";
+        const [lng, lat] = d.value;
+        return `${d.name ?? ""}<br/>${formatCoordPair(lat, lng)}`;
       },
-    ],
-    // 監聽縮放事件
-    onGeoRoam: (params: any) => {
-      if (params.zoom != null) {
-        currentZoom.value = params.zoom;
-      }
     },
+    geo: {
+      map: "world",
+      roam: true,
+      center,
+      zoom,
+      scaleLimit: { min: 1, max: 220 },
+      itemStyle: {
+        areaColor: "#3f3f46",
+        borderColor: "#71717a",
+        borderWidth: 1.2,
+      },
+      emphasis: {
+        disabled: false,
+        itemStyle: { areaColor: "#52525b" },
+      },
+      select: { disabled: true },
+    },
+    series,
   };
 });
 </script>
 
 <template>
   <div
-    class="w-full h-full relative overflow-hidden flex flex-col items-center justify-center bg-zinc-950"
+    class="w-full min-h-[200px] h-[min(30vh,320px)] max-h-[320px] relative overflow-hidden flex flex-col rounded-lg border border-zinc-800 bg-zinc-950"
   >
-    <!-- ECharts Map -->
-    <VChart class="w-full h-full" :option="option" autoresize />
-
-    <!-- Location Info Overlay -->
     <div
-      v-if="serverLocation"
-      class="absolute bottom-0 left-0 right-0 flex items-center justify-between p-4 bg-gradient-to-t from-black/80 to-transparent"
+      class="absolute top-0 left-0 right-0 z-10 px-4 py-2.5 flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-sm"
     >
-      <div
-        class="flex items-center gap-2 bg-black/60 backdrop-blur-sm px-3 py-2 rounded border border-yellow-500/30"
+      <span
+        class="text-xs font-semibold uppercase tracking-wider text-zinc-500"
+        >Route preview</span
       >
-        <div class="w-3 h-3 rounded-full bg-yellow-500 animate-pulse"></div>
-        <div class="text-xs">
-          <div class="text-yellow-400 font-bold">Server Location</div>
-          <div class="text-zinc-300 font-mono">
-            {{ serverLocation[0].toFixed(4) }}°N,
-            {{ serverLocation[1].toFixed(4) }}°E
-          </div>
-        </div>
+      <span
+        v-if="hasVpnPoint"
+        class="text-xs text-zinc-500 truncate max-w-[55%]"
+      >
+        Game server appears after traffic is detected
+      </span>
+      <span
+        v-else-if="clientGeoError"
+        class="text-xs text-amber-600/90 truncate max-w-[55%]"
+        :title="clientGeoError"
+      >
+        Location hint unavailable
+      </span>
+    </div>
+
+    <div class="flex-1 min-h-0 pt-10 relative">
+      <VChart
+        class="w-full h-full"
+        :option="option"
+        :update-options="{ replaceMerge: ['series'] }"
+        autoresize
+      />
+
+      <div
+        v-if="clientGeoLoading && !hasClientPoint"
+        class="absolute inset-0 top-10 flex flex-col items-center justify-center gap-2 pointer-events-none px-6 text-center"
+      >
+        <p class="text-sm text-zinc-400">Resolving your approximate location…</p>
       </div>
 
       <div
-        class="text-xs text-zinc-400 font-mono bg-black/40 px-2 py-1 rounded"
+        v-else-if="!hasVpnPoint && !hasClientPoint"
+        class="absolute inset-0 top-10 flex flex-col items-center justify-center gap-2 pointer-events-none px-6 text-center"
       >
-        Taiwan (Changhua)
+        <p class="text-sm text-zinc-400">
+          Select a VPN server to see its location on the map.
+        </p>
+        <p v-if="clientGeoError" class="text-xs text-amber-600/90">
+          {{ clientGeoError }}
+        </p>
+      </div>
+
+      <div
+        v-else-if="!hasVpnPoint && hasClientPoint"
+        class="absolute inset-0 top-10 flex flex-col items-center justify-center gap-2 pointer-events-none px-6 text-center"
+      >
+        <p class="text-sm text-zinc-400">
+          Select a VPN server to see the full route.
+        </p>
+      </div>
+
+      <div
+        v-if="
+          (hasVpnPoint && vpnLocation) || (hasClientPoint && clientLocation)
+        "
+        class="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-3 p-3 bg-gradient-to-t from-black/85 via-black/40 to-transparent pointer-events-none"
+      >
+        <div
+          class="flex flex-col gap-2 min-w-0 sm:flex-row sm:items-end sm:gap-3"
+        >
+          <div
+            v-if="hasClientPoint && clientLocation"
+            class="pointer-events-auto flex items-center gap-2 bg-black/55 backdrop-blur-sm px-3 py-2 rounded-md border border-sky-500/30"
+          >
+            <div class="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+            <div class="text-left min-w-0">
+              <div
+                class="text-xs font-bold uppercase tracking-wide text-sky-400/90"
+              >
+                You (approx.)
+              </div>
+              <div class="text-xs text-zinc-300 font-mono truncate">
+                {{ formatCoordPair(clientLocation[1], clientLocation[0]) }}
+              </div>
+              <div
+                v-if="clientLabel"
+                class="text-xs text-zinc-500 truncate"
+              >
+                {{ clientLabel }}
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="hasVpnPoint && vpnLocation"
+            class="pointer-events-auto flex items-center gap-2 bg-black/55 backdrop-blur-sm px-3 py-2 rounded-md border border-amber-500/25"
+          >
+            <div class="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+            <div class="text-left min-w-0">
+              <div
+                class="text-xs font-bold uppercase tracking-wide text-amber-400/90"
+              >
+                VPN node
+              </div>
+              <div class="text-xs text-zinc-300 font-mono truncate">
+                {{ formatCoordPair(vpnLocation[1], vpnLocation[0]) }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          v-if="regionLabel && hasVpnPoint"
+          class="text-xs text-zinc-500 font-medium truncate max-w-[40%] text-right self-end"
+        >
+          {{ regionLabel }}
+        </div>
       </div>
     </div>
   </div>

@@ -11,6 +11,7 @@ import { jwt, sign } from "hono/jwt";
 import { comparePassword, hashPassword } from "./auth.js";
 import { generateRandomPassword } from "./password-utils.js";
 import vpn from "./api/vpn.js";
+import geo from "./api/geo.js";
 
 const app = new Hono();
 
@@ -26,7 +27,8 @@ app.use("/api/*", async (c, next) => {
     path === "/api/auth/login" ||
     path === "/api/auth/admin-login" ||
     (c.req.method === "GET" && path.startsWith("/api/servers")) ||
-    (c.req.method === "GET" && path.match(/^\/api\/games\/.*\/ranges$/))
+    (c.req.method === "GET" && path.match(/^\/api\/games\/.*\/ranges$/)) ||
+    (c.req.method === "GET" && path.startsWith("/api/geo/"))
   ) {
     await next();
     return;
@@ -50,7 +52,8 @@ app.use("/api/*", async (c, next) => {
     path === "/api/auth/login" ||
     path === "/api/auth/admin-login" ||
     (c.req.method === "GET" && path.startsWith("/api/servers")) ||
-    (c.req.method === "GET" && path.match(/^\/api\/games\/.*\/ranges$/))
+    (c.req.method === "GET" && path.match(/^\/api\/games\/.*\/ranges$/)) ||
+    (c.req.method === "GET" && path.startsWith("/api/geo/"))
   ) {
     await next();
     return;
@@ -75,6 +78,9 @@ app.use("/api/*", async (c, next) => {
 
 // === VPN Routes ===
 app.route("/api/vpn", vpn);
+
+// === Geo (public GET /api/geo/*; JWT skipped in middleware above) ===
+app.route("/api/geo", geo);
 
 // === Auth ===
 

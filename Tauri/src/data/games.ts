@@ -7,7 +7,7 @@ export interface Server {
   region: string;
   endpoint: string;
   publicKey: string;
-  location: [number, number]; // [latitude, longitude]
+  location: [number, number]; // [longitude, latitude] (matches DB / vps-agent)
   tags?: string[]; // 支援的遊戲 tag
 }
 

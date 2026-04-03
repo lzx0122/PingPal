@@ -81,6 +81,15 @@ PersistentKeepalive = 25
         ipv4Address: ipv4,
       });
 
+      if (cfg.profileId && cfg.privateKey) {
+        await vpnStore.saveConfig(
+          cfg.profileId,
+          cfg.privateKey,
+          serverConfig.server_endpoint,
+          serverConfig.assigned_ip,
+        );
+      }
+
       status.value = `Connected - ${serverConfig.server_endpoint}`;
       isConnected.value = true;
       currentPing.value = Math.floor(Math.random() * 10) + 20;

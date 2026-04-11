@@ -3,16 +3,18 @@
 //! This module provides functionality to monitor process-level network connections
 //! on Windows using the IP Helper API. It can detect both TCP and UDP connections,
 //! filter public IPs, and automatically identify game servers based on traffic patterns.
-//! 
+//!
 //! For UDP game servers (like PUBG), it uses a raw socket sniffer to detect
 //! remote endpoints since standard Windows APIs don't provide this for UDP.
 
+use crate::error::{to_cmd_err, AppError};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
+use std::mem;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use std::mem;
+use tokio::sync::Mutex as AsyncMonitorMutex;
 
 // Configuration constants
 const MONITORING_INTERVAL_SECS: u64 = 2;
@@ -22,13 +24,11 @@ use windows::Win32::NetworkManagement::IpHelper::{
     GetExtendedUdpTable, MIB_UDPTABLE_OWNER_PID, UDP_TABLE_OWNER_PID,
 };
 use windows::Win32::Networking::WinSock::{
-    AF_INET, SOCK_RAW, IPPROTO_IP, SIO_RCVALL, 
-    ioctlsocket, socket, bind, recv, closesocket, SOCKADDR_IN, SOCKADDR,
-    WSAStartup, WSADATA, SEND_RECV_FLAGS,
+    bind, closesocket, ioctlsocket, recv, socket, WSAStartup, AF_INET, IPPROTO_IP, SEND_RECV_FLAGS,
+    SIO_RCVALL, SOCKADDR, SOCKADDR_IN, SOCK_RAW, WSADATA,
 };
 
 /// Network connection information including protocol, endpoints, and traffic rates.
-
 
 /// Detected server information with metadata for display and routing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,8 +64,7 @@ impl Default for TrafficStats {
 
 /// State for network monitoring.
 ///
-/// This is managed by Tauri's state system and should be accessed via
-/// `app.state::<MonitorState>()` in commands.
+/// Wrapped in [`tokio::sync::Mutex`] and managed via Tauri `State` in commands.
 #[derive(Default)]
 pub struct MonitorState {
     is_monitoring: bool,
@@ -130,7 +129,7 @@ fn port_to_host(port: u32) -> u16 {
 fn is_public_ip(ip: &str) -> bool {
     if let Ok(addr) = ip.parse::<Ipv4Addr>() {
         let octets = addr.octets();
-        
+
         // Exclude private ranges
         if octets[0] == 10
             || (octets[0] == 172 && (16..=31).contains(&octets[1]))
@@ -142,7 +141,7 @@ fn is_public_ip(ip: &str) -> bool {
         {
             return false;
         }
-        
+
         return true;
     }
     false
@@ -164,18 +163,24 @@ fn get_local_ip() -> Option<Ipv4Addr> {
 /// Get all process IDs for a given process name using Windows tasklist.
 fn get_all_process_ids(process_name: &str) -> Vec<u32> {
     use std::process::Command;
-    
+
     let output = match Command::new("tasklist")
-        .args(["/FI", &format!("IMAGENAME eq {}", process_name), "/FO", "CSV", "/NH"])
+        .args([
+            "/FI",
+            &format!("IMAGENAME eq {}", process_name),
+            "/FO",
+            "CSV",
+            "/NH",
+        ])
         .output()
     {
         Ok(output) => output,
         Err(_) => return Vec::new(),
     };
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut pids = Vec::new();
-    
+
     for line in stdout.lines() {
         let parts: Vec<&str> = line.split(',').collect();
         if parts.len() >= 2 {
@@ -185,81 +190,98 @@ fn get_all_process_ids(process_name: &str) -> Vec<u32> {
             }
         }
     }
-    
+
     pids
 }
 
 /// Find the most likely game process PID by checking which one has network connections.
 fn find_game_process_pid(process_name: &str) -> Option<u32> {
     let pids = get_all_process_ids(process_name);
-    
+
     if pids.is_empty() {
-        println!("⚠️  No processes found with name '{}'", process_name);
+        tracing::debug!(process = %process_name, "no matching processes");
         return None;
     }
-    
-    println!("🔍 Found {} process(es) named '{}': {:?}", pids.len(), process_name, pids);
-    
+
+    tracing::debug!(count = pids.len(), process = %process_name, pids = ?pids, "process candidates");
+
     if pids.len() == 1 {
-        println!("✓ Single process found, using PID {}", pids[0]);
+        tracing::debug!(pid = pids[0], "single process selected");
         return Some(pids[0]);
     }
-    
-    // Multiple processes found - find the one with most connections
-    println!("🔍 Multiple processes detected, checking network connections...");
-    
+
+    tracing::debug!("multiple processes, scoring by UDP ports");
+
     let mut best_pid = None;
     let mut max_connections = 0;
-    
+
     for &pid in &pids {
         let udp_count = get_udp_ports(pid).len();
         let total = udp_count;
-        
-        println!("   PID {}: {} UDP ports", pid, udp_count);
-        
+
+        tracing::debug!(pid, udp_ports = udp_count, "pid udp port count");
+
         if total > max_connections {
             max_connections = total;
             best_pid = Some(pid);
         }
     }
-    
+
     // If no process has connections yet, just use the first one
     let selected_pid = best_pid.unwrap_or(pids[0]);
-    
+
     if max_connections > 0 {
-        println!("✓ Selected PID {} with {} connections (actual game process)", selected_pid, max_connections);
+        tracing::debug!(
+            selected_pid,
+            max_connections,
+            "selected pid by connection count"
+        );
     } else {
-        println!("⚠️  No connections found on any process, defaulting to PID {}", selected_pid);
+        tracing::debug!(selected_pid, "no connections yet, defaulting to first pid");
     }
-    
+
     Some(selected_pid)
 }
-
-
 
 /// Get UDP connections for a specific process ID using Windows API.
 /// Note: This only returns local bindings.
 
-
 /// Returns a set of local ports used by the given PID for UDP.
 fn get_udp_ports(pid: u32) -> HashSet<u16> {
     let mut ports = HashSet::new();
-    
+
     unsafe {
         let mut size: u32 = 0;
         // First call
-        let _ = GetExtendedUdpTable(None, &mut size, false, AF_INET.0 as u32, UDP_TABLE_OWNER_PID, 0);
-        
-        if size == 0 { return ports; }
-        
+        let _ = GetExtendedUdpTable(
+            None,
+            &mut size,
+            false,
+            AF_INET.0 as u32,
+            UDP_TABLE_OWNER_PID,
+            0,
+        );
+
+        if size == 0 {
+            return ports;
+        }
+
         let mut buffer = vec![0u8; size as usize];
         // Second call
-        let result = GetExtendedUdpTable(Some(buffer.as_mut_ptr() as *mut _), &mut size, false, AF_INET.0 as u32, UDP_TABLE_OWNER_PID, 0);
-        
+        let result = GetExtendedUdpTable(
+            Some(buffer.as_mut_ptr() as *mut _),
+            &mut size,
+            false,
+            AF_INET.0 as u32,
+            UDP_TABLE_OWNER_PID,
+            0,
+        );
+
         if result == 0 {
             let table = &*(buffer.as_ptr() as *const MIB_UDPTABLE_OWNER_PID);
-            let entries = std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
-            
+            let entries =
+                std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
+
             for entry in entries {
                 if entry.dwOwningPid == pid {
                     ports.insert(port_to_host(entry.dwLocalPort));
@@ -281,8 +303,10 @@ struct GeoIpResponse {
 /// Resolve IP location using ip-api.com
 async fn resolve_ip_location(ip: &str) -> Option<String> {
     // Only query public IPs to avoid wasting quotas
-    if !is_public_ip(ip) { return None; }
-    
+    if !is_public_ip(ip) {
+        return None;
+    }
+
     let url = format!("{}{}", GEOIP_API_URL, ip);
     match reqwest::get(&url).await {
         Ok(resp) => {
@@ -291,24 +315,24 @@ async fn resolve_ip_location(ip: &str) -> Option<String> {
                     let country = json.country.unwrap_or_default();
                     let city = json.city.unwrap_or_default();
                     if !country.is_empty() {
-                         return Some(format!("{}, {}", city, country));
+                        return Some(format!("{}, {}", city, country));
                     }
                 }
             }
-        },
-        Err(e) => println!("GeoIP lookup failed: {}", e),
+        }
+        Err(e) => tracing::warn!(error = %e, "geoip lookup failed"),
     }
     None
 }
 
 /// Sniffer thread that captures all UDP traffic and filters for game ports.
 fn start_sniffer(
-    bind_ip: Ipv4Addr, 
-    interesting_ports: Arc<Mutex<HashSet<u16>>>, 
+    bind_ip: Ipv4Addr,
+    interesting_ports: Arc<Mutex<HashSet<u16>>>,
     udp_cache: Arc<Mutex<HashMap<String, TrafficStats>>>,
-    cancel_rx: tokio::sync::watch::Receiver<bool>
+    cancel_rx: tokio::sync::watch::Receiver<bool>,
 ) {
-    println!("🔌 Sniffer starting on interface: {}", bind_ip);
+    tracing::debug!(%bind_ip, "sniffer starting");
 
     // Manual definition if missing from windows crate
     const RCVALL_ON: u32 = 1;
@@ -317,7 +341,7 @@ fn start_sniffer(
         // Initialize Winsock
         let mut wsa_data: WSADATA = mem::zeroed();
         if WSAStartup(0x0202, &mut wsa_data) != 0 {
-            println!("Failed to init Winsock");
+            tracing::warn!("winsock init failed");
             return;
         }
 
@@ -326,7 +350,7 @@ fn start_sniffer(
         let sock = match socket(AF_INET.0 as i32, SOCK_RAW, IPPROTO_IP.0) {
             Ok(s) => s,
             Err(e) => {
-                println!("Failed to create raw socket: {}", e);
+                tracing::warn!(error = %e, "raw socket create failed");
                 return;
             }
         };
@@ -338,81 +362,89 @@ fn start_sniffer(
             sin_addr: windows::Win32::Networking::WinSock::IN_ADDR {
                 S_un: windows::Win32::Networking::WinSock::IN_ADDR_0 {
                     S_addr: u32::from_ne_bytes(bind_ip.octets()),
-                }
+                },
             },
             sin_zero: [0; 8],
         };
 
         // bind() returns i32
-        if bind(sock, &addr as *const _ as *const SOCKADDR, std::mem::size_of::<SOCKADDR_IN>() as i32) != 0 {
-             println!("Failed to bind raw socket. Error: {}", windows::Win32::Networking::WinSock::WSAGetLastError().0);
-             let _ = closesocket(sock);
-             return;
+        if bind(
+            sock,
+            &addr as *const _ as *const SOCKADDR,
+            std::mem::size_of::<SOCKADDR_IN>() as i32,
+        ) != 0
+        {
+            tracing::warn!(
+                code = windows::Win32::Networking::WinSock::WSAGetLastError().0,
+                "raw socket bind failed"
+            );
+            let _ = closesocket(sock);
+            return;
         }
 
         // Enable RCVALL (Promiscuous mode for this socket)
         let mut one: u32 = RCVALL_ON;
-        
+
         // ioctlsocket returns i32
-        if ioctlsocket(
-            sock,
-            SIO_RCVALL as i32,
-            &mut one
-        ) != 0 {
-             println!("Failed to set SIO_RCVALL. Error: {}", windows::Win32::Networking::WinSock::WSAGetLastError().0);
-             let _ = closesocket(sock);
-             return; 
+        if ioctlsocket(sock, SIO_RCVALL as i32, &mut one) != 0 {
+            tracing::warn!(
+                code = windows::Win32::Networking::WinSock::WSAGetLastError().0,
+                "SIO_RCVALL failed"
+            );
+            let _ = closesocket(sock);
+            return;
         }
 
-        println!("🔌 Sniffer active and listening...");
-        
+        tracing::debug!("sniffer listening");
+
         let mut buffer = [0u8; 65536];
-        
+
         loop {
             if *cancel_rx.borrow() {
                 break;
             }
 
             // recv returns i32 (bytes read)
-            let bytes_read = recv(
-                sock, 
-                &mut buffer, 
-                SEND_RECV_FLAGS(0)
-            );
-            
+            let bytes_read = recv(sock, &mut buffer, SEND_RECV_FLAGS(0));
+
             if bytes_read > 0 {
                 let len = bytes_read as usize;
-                
-                if len < mem::size_of::<Ipv4Header>() { continue; }
-                
+
+                if len < mem::size_of::<Ipv4Header>() {
+                    continue;
+                }
+
                 let ip_header = &*(buffer.as_ptr() as *const Ipv4Header);
                 let ip_header_len = (ip_header.version_ihl & 0x0F) as usize * 4;
-                
-                if ip_header.protocol == 17 { // UDP
-                    if len < ip_header_len + mem::size_of::<UdpHeader>() { continue; }
-                    
+
+                if ip_header.protocol == 17 {
+                    // UDP
+                    if len < ip_header_len + mem::size_of::<UdpHeader>() {
+                        continue;
+                    }
+
                     let udp_header = &*(buffer.as_ptr().add(ip_header_len) as *const UdpHeader);
                     let src_port = u16::from_be(udp_header.src_port);
                     let dst_port = u16::from_be(udp_header.dst_port);
                     let payload_len = len - ip_header_len - mem::size_of::<UdpHeader>();
-                    
+
                     let src_ip = ip_to_string(ip_header.src_addr);
                     let dst_ip = ip_to_string(ip_header.dst_addr);
 
                     let ports = interesting_ports.lock().unwrap();
-                    
+
                     if ports.contains(&src_port) {
                         // Outgoing packet: Game (Src) -> Server (Dst)
                         if is_public_ip(&dst_ip) {
                             let key = format!("{}:{}", dst_ip, dst_port);
-                             let mut cache = udp_cache.lock().unwrap();
-                             let entry = cache.entry(key).or_default();
-                             entry.last_seen = Instant::now();
-                             entry.total_sent += payload_len as u64;
-                             // We count packet details + headers or just payload? 
-                             // Usually "network traffic" includes headers, but len here is total bytes read.
-                             // Let's count total bytes read on wire (len) for accuracy of "bandwidth".
-                             // entry.total_sent += len as u64; // Wait, len includes IP header. Correct.
+                            let mut cache = udp_cache.lock().unwrap();
+                            let entry = cache.entry(key).or_default();
+                            entry.last_seen = Instant::now();
+                            entry.total_sent += payload_len as u64;
+                            // We count packet details + headers or just payload?
+                            // Usually "network traffic" includes headers, but len here is total bytes read.
+                            // Let's count total bytes read on wire (len) for accuracy of "bandwidth".
+                            // entry.total_sent += len as u64; // Wait, len includes IP header. Correct.
                         }
                     } else if ports.contains(&dst_port) {
                         // Incoming packet: Server (Src) -> Game (Dst)
@@ -427,21 +459,19 @@ fn start_sniffer(
                 }
             }
         }
-        
+
         let _ = closesocket(sock);
     }
 }
-
-
 
 /// Background monitoring loop that checks process connections periodically.
 async fn monitoring_loop(
     process_name: String,
     mut cancel_rx: tokio::sync::watch::Receiver<bool>,
-    state: Arc<Mutex<MonitorState>>,
+    state: Arc<AsyncMonitorMutex<MonitorState>>,
 ) {
     let mut interval = tokio::time::interval(Duration::from_secs(MONITORING_INTERVAL_SECS));
-    
+
     // Store previous traffic stats to calculate rate: key -> (total_sent, total_recv)
     let mut prev_stats: HashMap<String, (u64, u64)> = HashMap::new();
     let mut last_check = Instant::now();
@@ -449,20 +479,25 @@ async fn monitoring_loop(
     // Attempt to find local IP for sniffing
     let local_ip = get_local_ip();
     if let Some(ip) = local_ip {
-        println!("Network Interface IP: {}", ip);
-        
+        tracing::debug!(%ip, "local interface for sniffer");
+
         // Clone state for sniffer thread
-        let interesting_ports = state.lock().unwrap().interesting_ports.clone();
-        let udp_cache = state.lock().unwrap().udp_detected_cache.clone();
+        let (interesting_ports, udp_cache) = {
+            let guard = state.lock().await;
+            (
+                guard.interesting_ports.clone(),
+                guard.udp_detected_cache.clone(),
+            )
+        };
         let sniffer_cancel = cancel_rx.clone();
-        
+
         use std::thread;
         // Run sniffer in a separate OS thread (recv is blocking)
         thread::spawn(move || {
             start_sniffer(ip, interesting_ports, udp_cache, sniffer_cancel);
         });
     } else {
-        println!("⚠️ Could not determine local IP, UDP sniffing disabled.");
+        tracing::warn!("could not determine local IP; UDP sniffing disabled");
     }
 
     loop {
@@ -471,7 +506,7 @@ async fn monitoring_loop(
                 if *cancel_rx.borrow() {
                     break;
                 }
-                
+
                 let now = Instant::now();
                 let time_diff = now.duration_since(last_check).as_secs_f64();
                 last_check = now;
@@ -480,10 +515,10 @@ async fn monitoring_loop(
                 if let Some(pid) = find_game_process_pid(&process_name) {
                     // Get UDP ports bound by the process (standard API)
                     let udp_ports = get_udp_ports(pid);
-                    
+
                     // Pre-fetch Arcs to avoid holding state lock
                     let (interesting_ports_arc, udp_detected_cache_arc, geo_cache_arc) = {
-                        let guard = state.lock().unwrap();
+                        let guard = state.lock().await;
                         (
                             guard.interesting_ports.clone(),
                             guard.udp_detected_cache.clone(),
@@ -497,29 +532,29 @@ async fn monitoring_loop(
                         ports_lock.clear();
                         ports_lock.extend(udp_ports.iter());
                     }
-                    
+
                     // Collect detected servers
                     let mut detected = Vec::new();
-                    
+
                     // 2. Add UDP connections from sniffer cache
                     {
                         let mut cache_lock = udp_detected_cache_arc.lock().unwrap();
                         // Remove old entries (> 30 seconds inactivity)
                         cache_lock.retain(|_, stats| stats.last_seen.elapsed() < Duration::from_secs(UDP_CACHE_TIMEOUT_SECS));
-                        
+
                         for (key, stats) in cache_lock.iter() {
                             let parts: Vec<&str> = key.split(':').collect();
                             if parts.len() == 2 {
                                 let ip = parts[0].to_string();
                                 let port = parts[1].parse().unwrap_or(0);
-                                
+
                                 // Calculate rates
                                 let (prev_sent, prev_recv) = prev_stats.get(key).unwrap_or(&(0, 0));
-                                
+
                                 // Handle counter restart or first seen
                                 let sent_diff = if stats.total_sent >= *prev_sent { stats.total_sent - *prev_sent } else { stats.total_sent };
                                 let recv_diff = if stats.total_recv >= *prev_recv { stats.total_recv - *prev_recv } else { stats.total_recv };
-                                
+
                                 let send_rate = (sent_diff as f64 / time_diff) as u64;
                                 let recv_rate = (recv_diff as f64 / time_diff) as u64;
 
@@ -538,18 +573,19 @@ async fn monitoring_loop(
                                     detected_at: chrono::Local::now().to_rfc3339(),
                                     is_game_server: true,
                                 });
-                                println!("   → UDP: {}:{} (↑{}/↓{} B/s)", ip, port, send_rate, recv_rate);
+                                tracing::trace!(%ip, port, send_rate, recv_rate, "udp endpoint rates");
                             }
                         }
                     }
-                    
+
                     // Update global state
-                    if let Ok(mut st) = state.lock() {
+                    {
+                        let mut st = state.lock().await;
                         st.detected_servers = detected.clone();
                     }
 
                     // Trigger GeoIP lookups
-                    let geo_cache = state.lock().unwrap().geo_cache.clone();
+                    let geo_cache = state.lock().await.geo_cache.clone();
 
                     for server in detected {
                         if !is_public_ip(&server.ip) { continue; }
@@ -573,7 +609,7 @@ async fn monitoring_loop(
                         }
                     }
                 } else {
-                    println!("Process {} not found", process_name);
+                    tracing::debug!(process = %process_name, "process not found this tick");
                 }
             }
             _ = cancel_rx.changed() => {
@@ -583,8 +619,8 @@ async fn monitoring_loop(
             }
         }
     }
-    
-    println!("Monitoring stopped");
+
+    tracing::debug!("monitoring loop stopped");
 }
 
 /// Start monitoring network connections for a specific process.
@@ -598,21 +634,20 @@ async fn monitoring_loop(
 #[tauri::command]
 pub async fn start_monitoring(
     process_name: String,
-    state: tauri::State<'_, Arc<Mutex<MonitorState>>>,
+    state: tauri::State<'_, Arc<AsyncMonitorMutex<MonitorState>>>,
 ) -> Result<String, String> {
-    let mut monitor_state = state.lock().map_err(|e| format!("Failed to acquire lock: {}", e))?;
-    
+    let mut monitor_state = state.lock().await;
+
     if monitor_state.is_monitoring {
-        return Err("Already monitoring a process".to_string());
+        return Err(to_cmd_err(AppError::AlreadyMonitoring));
     }
-    
-    // Verify process exists
+
     if find_game_process_pid(&process_name).is_none() {
-        return Err(format!("Process '{}' not found. Please start the game first.", process_name));
+        return Err(to_cmd_err(AppError::ProcessNotFound(process_name.clone())));
     }
-    
+
     let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
-    
+
     monitor_state.is_monitoring = true;
     monitor_state.process_name = Some(process_name.clone());
     monitor_state.cancel_token = Some(cancel_tx);
@@ -620,16 +655,16 @@ pub async fn start_monitoring(
     monitor_state.interesting_ports = Arc::new(Mutex::new(HashSet::new()));
     monitor_state.udp_detected_cache = Arc::new(Mutex::new(HashMap::new()));
     monitor_state.geo_cache = Arc::new(Mutex::new(HashMap::new()));
-    
+
     let state_clone = Arc::clone(&state.inner());
-    
+
     drop(monitor_state); // Release lock before spawning
-    
+
     // Spawn monitoring task
     tokio::spawn(async move {
         monitoring_loop(process_name, cancel_rx, state_clone).await;
     });
-    
+
     Ok("Monitoring started successfully".to_string())
 }
 
@@ -639,10 +674,10 @@ pub async fn start_monitoring(
 ///
 /// Returns an error if the state lock cannot be acquired.
 #[tauri::command]
-pub fn get_detected_servers(
-    state: tauri::State<'_, Arc<Mutex<MonitorState>>>,
+pub async fn get_detected_servers(
+    state: tauri::State<'_, Arc<AsyncMonitorMutex<MonitorState>>>,
 ) -> Result<Vec<DetectedServer>, String> {
-    let monitor_state = state.lock().map_err(|e| format!("Failed to acquire lock: {}", e))?;
+    let monitor_state = state.lock().await;
     Ok(monitor_state.detected_servers.clone())
 }
 
@@ -654,23 +689,23 @@ pub fn get_detected_servers(
 /// - No monitoring session is active
 /// - Failed to acquire state lock
 #[tauri::command]
-pub fn stop_monitoring(
-    state: tauri::State<'_, Arc<Mutex<MonitorState>>>,
+pub async fn stop_monitoring(
+    state: tauri::State<'_, Arc<AsyncMonitorMutex<MonitorState>>>,
 ) -> Result<String, String> {
-    let mut monitor_state = state.lock().map_err(|e| format!("Failed to acquire lock: {}", e))?;
-    
+    let mut monitor_state = state.lock().await;
+
     if !monitor_state.is_monitoring {
-        return Err("No active monitoring session".to_string());
+        return Err(to_cmd_err(AppError::NoActiveMonitoring));
     }
-    
+
     if let Some(cancel_tx) = &monitor_state.cancel_token {
         let _ = cancel_tx.send(true);
     }
-    
+
     monitor_state.is_monitoring = false;
     monitor_state.process_name = None;
     monitor_state.cancel_token = None;
-    
+
     Ok("Monitoring stopped successfully".to_string())
 }
 
@@ -683,11 +718,11 @@ pub fn stop_monitoring(
 /// - Failed to add route (see `vpn::add_route_to_vpn` for details)
 #[tauri::command]
 pub fn add_detected_ip_to_routes(ip: String) -> Result<String, String> {
-    // Validate IP is public
     if !is_public_ip(&ip) {
-        return Err(format!("Invalid or private IP address: {}", ip));
+        return Err(to_cmd_err(AppError::Msg(format!(
+            "invalid or private IP address: {}",
+            ip
+        ))));
     }
-    
-    // Call vpn module to add route
-    crate::vpn::add_route_to_vpn(&ip)
+    crate::vpn::add_route_to_vpn(&ip).map_err(|e| to_cmd_err(AppError::Msg(e)))
 }

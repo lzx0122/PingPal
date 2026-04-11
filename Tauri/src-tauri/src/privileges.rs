@@ -1,11 +1,11 @@
-use windows_sys::Win32::Foundation::{GetLastError, LUID, CloseHandle};
-use windows_sys::Win32::Security::{
-    AdjustTokenPrivileges, LookupPrivilegeValueW, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES,
-    TOKEN_QUERY, SE_PRIVILEGE_ENABLED, LUID_AND_ATTRIBUTES,
-};
-use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
+use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, LUID};
+use windows_sys::Win32::Security::{
+    AdjustTokenPrivileges, LookupPrivilegeValueW, LUID_AND_ATTRIBUTES, SE_PRIVILEGE_ENABLED,
+    TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
+};
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 /// Enable a specific Windows privilege for the current process
 fn enable_privilege(privilege_name: &str, token_handle: isize) -> Result<(), String> {
@@ -17,7 +17,11 @@ fn enable_privilege(privilege_name: &str, token_handle: isize) -> Result<(), Str
             .collect();
 
         if LookupPrivilegeValueW(std::ptr::null(), name_wide.as_ptr(), &mut luid) == 0 {
-            return Err(format!("LookupPrivilegeValueW failed for {}: {}", privilege_name, GetLastError()));
+            return Err(format!(
+                "LookupPrivilegeValueW failed for {}: {}",
+                privilege_name,
+                GetLastError()
+            ));
         }
 
         let mut token_privileges = TOKEN_PRIVILEGES {
@@ -37,15 +41,22 @@ fn enable_privilege(privilege_name: &str, token_handle: isize) -> Result<(), Str
             std::ptr::null_mut(),
         ) == 0
         {
-            return Err(format!("AdjustTokenPrivileges failed for {}: {}", privilege_name, GetLastError()));
+            return Err(format!(
+                "AdjustTokenPrivileges failed for {}: {}",
+                privilege_name,
+                GetLastError()
+            ));
         }
-        
+
         let err = GetLastError();
         if err != 0 {
-             // 1300 = ERROR_NOT_ALL_ASSIGNED
-             if err == 1300 {
-                 return Err(format!("{}: ERROR_NOT_ALL_ASSIGNED (權限未被授予)", privilege_name));
-             }
+            // 1300 = ERROR_NOT_ALL_ASSIGNED
+            if err == 1300 {
+                return Err(format!(
+                    "{}: ERROR_NOT_ALL_ASSIGNED (privilege not granted)",
+                    privilege_name
+                ));
+            }
         }
     }
 
@@ -57,8 +68,13 @@ pub fn enable_se_restore_privilege() -> Result<(), String> {
     unsafe {
         let mut token_handle = 0;
         let process_handle = GetCurrentProcess();
-        
-        if OpenProcessToken(process_handle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &mut token_handle) == 0 {
+
+        if OpenProcessToken(
+            process_handle,
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &mut token_handle,
+        ) == 0
+        {
             return Err(format!("OpenProcessToken failed: {}", GetLastError()));
         }
 
@@ -69,7 +85,7 @@ pub fn enable_se_restore_privilege() -> Result<(), String> {
         // SeSecurityPrivilege: Required for accessing security descriptors
         let required_privileges = [
             "SeRestorePrivilege",
-            "SeBackupPrivilege", 
+            "SeBackupPrivilege",
             "SeCreateSymbolicLinkPrivilege",
             "SeSecurityPrivilege",
         ];
@@ -80,11 +96,11 @@ pub fn enable_se_restore_privilege() -> Result<(), String> {
         for privilege in &required_privileges {
             match enable_privilege(privilege, token_handle) {
                 Ok(_) => {
-                    println!("✓ 已啟用權限: {}", privilege);
+                    tracing::debug!(%privilege, "privilege enabled");
                     success_count += 1;
                 }
                 Err(e) => {
-                    println!("✗ 無法啟用權限 {}: {}", privilege, e);
+                    tracing::warn!(%privilege, error = %e, "failed to enable privilege");
                     errors.push(format!("{}: {}", privilege, e));
                 }
             }
@@ -95,13 +111,18 @@ pub fn enable_se_restore_privilege() -> Result<(), String> {
 
         // Return error only if ALL privileges failed
         if success_count == 0 {
-            return Err(format!("所有權限啟用失敗:\n{}", errors.join("\n")));
+            return Err(format!(
+                "failed to enable any privilege:\n{}",
+                errors.join("\n")
+            ));
         }
 
-        // Warn if some privileges failed but at least one succeeded
         if !errors.is_empty() {
-            println!("警告: {} 個權限啟用失敗，但已啟用 {} 個，嘗試繼續...", 
-                     errors.len(), success_count);
+            tracing::warn!(
+                failed = errors.len(),
+                ok = success_count,
+                "some privileges failed; continuing with partial success"
+            );
         }
 
         Ok(())

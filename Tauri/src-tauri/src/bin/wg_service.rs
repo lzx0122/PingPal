@@ -62,19 +62,22 @@ fn run_service(_arguments: Vec<OsString>) -> windows_service::Result<()> {
     // We expect the arguments to be passed via the binPath command line.
     // binPath = "path\to\wg_service.exe" "path\to\wg-engine.exe" "AdapterName"
     // So std::env::args() should look like: [exe, engine_path, adapter_name]
-    
+
     let args: Vec<String> = std::env::args().collect();
-    
+
     // Default fallback (useful for testing or if paths match expectations)
     let exe_path = std::env::current_exe().unwrap();
     let exe_dir = exe_path.parent().unwrap();
-    
+
     let engine_path_str = if args.len() > 1 {
         args[1].clone()
     } else {
-        exe_dir.join("wg-engine-x86_64-pc-windows-msvc.exe").to_string_lossy().to_string()
+        exe_dir
+            .join("wg-engine-x86_64-pc-windows-msvc.exe")
+            .to_string_lossy()
+            .to_string()
     };
-    
+
     let adapter_name = if args.len() > 2 {
         args[2].clone()
     } else {
@@ -84,33 +87,43 @@ fn run_service(_arguments: Vec<OsString>) -> windows_service::Result<()> {
     // Spawn the actual wg-engine process
     // Command: wg-engine.exe <adapter_name>
     let mut child: Option<Child> = None;
-    
+
     // Log file path (SYSTEM can write to Windows/Temp)
     let log_path = std::env::temp_dir().join("nigping_service.log");
-    
+
     // Helper to log
     let log = |msg: &str| {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+        {
             let _ = writeln!(f, "[NigPingService] {}", msg);
         }
     };
 
-    log(&format!("Starting wrapper. Exe: {}, Engine: {}, Adapter: {}", exe_path.display(), engine_path_str, adapter_name));
+    log(&format!(
+        "Starting wrapper. Exe: {}, Engine: {}, Adapter: {}",
+        exe_path.display(),
+        engine_path_str,
+        adapter_name
+    ));
 
     match Command::new(&engine_path_str)
         .arg(&adapter_name)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .spawn() {
-            Ok(c) => {
-                log("Child spawned successfully");
-                child = Some(c);
-            },
-            Err(e) => {
-                 log(&format!("Failed to spawn child: {}", e));
-            }
+        .spawn()
+    {
+        Ok(c) => {
+            log("Child spawned successfully");
+            child = Some(c);
         }
+        Err(e) => {
+            log(&format!("Failed to spawn child: {}", e));
+        }
+    }
 
     // --- Wait for Stop Signal ---
     let _ = shutdown_rx.recv();

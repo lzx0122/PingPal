@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { getDeviceName } from "@/lib/tauriCommands";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +27,7 @@ onMounted(async () => {
 
 async function autoDetectDeviceName() {
   try {
-    const name = await invoke<string>("get_device_name");
+    const name = await getDeviceName();
     deviceName.value = name;
   } catch (e) {
     console.error("Failed to get device name:", e);

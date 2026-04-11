@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { connectVpn, disconnectVpn } from "@/lib/tauriCommands";
 import { useVpnStore } from "@/stores/vpnStore";
 import { useVpnProfile } from "@/composables/useVpnProfile";
 import { apiFetch } from "@/lib/apiClient";
@@ -76,7 +76,7 @@ PersistentKeepalive = 25
       const configContent = getWgConfig(serverConfig);
       const ipv4 = serverConfig.assigned_ip.split("/")[0];
 
-      await invoke("connect_korea", {
+      await connectVpn({
         configContent,
         ipv4Address: ipv4,
       });
@@ -106,7 +106,7 @@ PersistentKeepalive = 25
     status.value = "Disconnecting...";
 
     try {
-      await invoke("disconnect_vpn");
+      await disconnectVpn();
       status.value = "Ready";
       isConnected.value = false;
       currentPing.value = 0;

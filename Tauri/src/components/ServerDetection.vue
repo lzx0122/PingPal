@@ -271,7 +271,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  addDetectedIpToRoutes,
+  getDetectedServers,
+  startMonitoring as tauriStartMonitoring,
+  stopMonitoring as tauriStopMonitoring,
+  type DetectedServerPayload,
+} from "@/lib/tauriCommands";
 import {
   Activity,
   Zap,
@@ -284,16 +290,8 @@ import {
   Trophy,
 } from "lucide-vue-next";
 
-interface DetectedServer {
-  ip: string;
-  port: number;
-  protocol: string;
-  send_rate: number;
-  recv_rate: number;
-  country: string | null;
-  detected_at: string;
+interface DetectedServer extends DetectedServerPayload {
   latency?: number | null;
-  is_game_server: boolean;
 }
 
 // Props
@@ -419,7 +417,7 @@ async function startMonitoring() {
   history.value = []; // Reset history
 
   try {
-    await invoke("start_monitoring", {
+    await tauriStartMonitoring({
       processName: props.processName,
     });
 
@@ -444,7 +442,7 @@ async function startMonitoring() {
 async function stopMonitoring() {
   isLoading.value = true;
   try {
-    await invoke("stop_monitoring");
+    await tauriStopMonitoring();
     isMonitoring.value = false;
     statusMessage.value = "Stopped";
     statusType.value = "info";
@@ -456,7 +454,7 @@ async function stopMonitoring() {
     detectedServers.value = [];
     history.value = [];
   } catch (error) {
-    statusMessage.value = `停止失敗: ${error}`;
+    statusMessage.value = `Stop failed: ${error}`;
     statusType.value = "error";
     console.error("Failed to stop monitoring:", error);
   } finally {
@@ -466,20 +464,20 @@ async function stopMonitoring() {
 
 async function fetchServers() {
   try {
-    const servers = await invoke<DetectedServer[]>("get_detected_servers");
+    const servers = await getDetectedServers();
     detectedServers.value = servers;
 
     if (servers.length > 0 && isMonitoring.value) {
       const gameServers = servers.filter((s) => s.is_game_server);
       if (gameServers.length > 0) {
-        statusMessage.value = "已連線";
+        statusMessage.value = "Connected";
         statusType.value = "success";
       } else {
-        statusMessage.value = "掃描中...";
+        statusMessage.value = "Scanning...";
         statusType.value = "info";
       }
     } else if (isMonitoring.value) {
-      statusMessage.value = "掃描中...";
+      statusMessage.value = "Scanning...";
       statusType.value = "info";
     }
   } catch (error) {
@@ -490,12 +488,12 @@ async function fetchServers() {
 async function addToRoutes(ip: string) {
   addingRoute.value = ip;
   try {
-    await invoke<string>("add_detected_ip_to_routes", { ip });
-    statusMessage.value = "已加入路由"; // Shortened
+    await addDetectedIpToRoutes(ip);
+    statusMessage.value = "Route added";
     statusType.value = "success";
     emit("new-range-detected", ip);
   } catch (error) {
-    statusMessage.value = `失敗: ${error}`;
+    statusMessage.value = `Failed: ${error}`;
     statusType.value = "error";
   } finally {
     addingRoute.value = null;
@@ -511,5 +509,5 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap");
 </style>

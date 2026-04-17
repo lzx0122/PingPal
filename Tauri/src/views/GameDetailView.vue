@@ -8,6 +8,7 @@ import type { Server } from "@/data/games";
 import { useVpnStore } from "@/stores/vpnStore";
 import { useGameServerCatalog } from "@/composables/useGameServerCatalog";
 import { useWireGuardSession } from "@/composables/useWireGuardSession";
+import { useGameTrafficMonitor } from "@/composables/useGameTrafficMonitor";
 
 const props = defineProps<{ gameId: string }>();
 
@@ -35,6 +36,24 @@ const serversForGame = computed(() => {
 
 const vpnConfigForUi = computed(() => vpnStore.getVpnConfig());
 
+const trafficMonitor = useGameTrafficMonitor({
+  getProcessName: () => game.value?.processName ?? "",
+  getGameId: () => game.value?.id,
+  getKnownRanges: () => gameIpRanges.value,
+  onNewRangeDetected: (ip) => onNewRangeDetected(ip),
+});
+const isBusy = computed(
+  () => isLoading.value || trafficMonitor.isLoading.value,
+);
+const trafficStatusText = computed(() => {
+  if (trafficMonitor.activityMessage.value) {
+    return trafficMonitor.activityMessage.value;
+  }
+  return trafficMonitor.isMonitoring.value
+    ? "Monitoring active"
+    : "Monitoring idle";
+});
+
 function syncFromRoute() {
   const id = props.gameId;
   const g = GAMES.find((x) => x.id === id);
@@ -61,11 +80,21 @@ watch(
 
 async function onConnect() {
   if (!selectedServer.value) return;
-  await connect(selectedServer.value);
+  const connected = await connect(selectedServer.value);
+  if (!connected) return;
+  await trafficMonitor.startMonitoring();
 }
 
 async function onDisconnect() {
+  await trafficMonitor.stopMonitoring();
   await disconnect();
+}
+
+function onNewRangeDetected(ip: string) {
+  if (!ip) return;
+  const newSet = new Set(gameIpRanges.value);
+  newSet.add(ip);
+  gameIpRanges.value = newSet;
 }
 </script>
 
@@ -77,11 +106,15 @@ async function onDisconnect() {
       v-model="selectedServer"
       :loading="isServersLoading"
       :is-connected="isConnected"
-      :is-loading="isLoading"
+      :is-loading="isBusy"
+      :is-traffic-monitoring="trafficMonitor.isMonitoring.value"
+      :traffic-status-text="trafficStatusText"
+      :traffic-status-type="trafficMonitor.activityType.value"
       :vpn-config="vpnConfigForUi"
       :game-ip-ranges="gameIpRanges"
       @connect="onConnect"
       @disconnect="onDisconnect"
+      @new-range-detected="onNewRangeDetected"
     >
       <template #play-icon><Play class="w-4 h-4 mr-2 fill-current" /></template>
       <template #stop-icon><StopCircle class="w-4 h-4 mr-2" /></template>

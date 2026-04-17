@@ -27,3 +27,7 @@ dist
 dist-ssr
 target/
 Tauri/docs
+
+docs/
+
+.github/

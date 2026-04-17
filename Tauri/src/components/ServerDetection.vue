@@ -269,14 +269,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, watch } from "vue";
-import {
-  addDetectedIpToRoutes,
-  getDetectedServers,
-  startMonitoring as tauriStartMonitoring,
-  stopMonitoring as tauriStopMonitoring,
-  type DetectedServerPayload,
-} from "@/lib/tauriCommands";
+import { ref, computed, watch } from "vue";
+import { useGameTrafficMonitor } from "@/composables/useGameTrafficMonitor";
 import {
   Activity,
   Zap,
@@ -288,10 +282,6 @@ import {
   Target,
   Trophy,
 } from "lucide-vue-next";
-
-interface DetectedServer extends DetectedServerPayload {
-  latency?: number | null;
-}
 
 // Props
 interface Props {
@@ -305,28 +295,31 @@ const emit = defineEmits<{
   (e: "new-range-detected", ip: string): void;
 }>();
 
-// State
-const isMonitoring = ref(false);
-const isLoading = ref(false);
-const detectedServers = ref<DetectedServer[]>([]);
-const statusMessage = ref("");
-const statusType = ref<"info" | "success" | "error">("info");
-const addingRoute = ref<string | null>(null);
+const {
+  isMonitoring,
+  isLoading,
+  detectedServers,
+  statusMessage,
+  statusType,
+  addingRoute,
+  startMonitoring,
+  stopMonitoring,
+  addToRoutes,
+} = useGameTrafficMonitor({
+  getProcessName: () => props.processName,
+  getGameId: () => props.gameId,
+  getKnownRanges: () => props.knownRanges,
+  onNewRangeDetected: (ip) => emit("new-range-detected", ip),
+});
 
 // History State
-const MAX_HISTORY = 60; // Keep last 60 data points
+const MAX_HISTORY = 60;
 
-// Note: original code had strict DataPoint interface, simplifying for replacement/merge
 const history = ref<any[]>([]);
-
-let pollInterval: number | null = null;
 
 // Computed for Primary vs Others
 const sortedServers = computed(() => {
-  // 1. Filter only Game Servers (UDP)
   const udpServers = detectedServers.value.filter((s) => s.is_game_server);
-
-  // 2. Sort by total traffic rate descending
   return udpServers.sort((a, b) => {
     const rateA = a.send_rate + a.recv_rate;
     const rateB = b.send_rate + b.recv_rate;
@@ -336,7 +329,6 @@ const sortedServers = computed(() => {
 
 const primaryServer = computed(() => {
   if (sortedServers.value.length === 0) return null;
-  // The top one is the primary
   return sortedServers.value[0];
 });
 
@@ -401,115 +393,13 @@ function formatBytes(bytes: number): string {
 }
 
 async function toggleMonitoring() {
+  history.value = [];
   if (isMonitoring.value) {
     await stopMonitoring();
   } else {
     await startMonitoring();
   }
 }
-
-async function startMonitoring() {
-  isLoading.value = true;
-  statusMessage.value = "Starting...";
-  statusType.value = "info";
-  history.value = []; // Reset history
-
-  try {
-    await tauriStartMonitoring({
-      processName: props.processName,
-    });
-
-    isMonitoring.value = true;
-    statusMessage.value = "Scanning...";
-    statusType.value = "info";
-
-    // Start polling for detected servers
-    pollInterval = window.setInterval(fetchServers, 2000);
-
-    // Also fetch immediately
-    await fetchServers();
-  } catch (error) {
-    statusMessage.value = `Failed: ${error}`;
-    statusType.value = "error";
-    console.error("Failed to start monitoring:", error);
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-async function stopMonitoring() {
-  isLoading.value = true;
-  try {
-    await tauriStopMonitoring();
-    isMonitoring.value = false;
-    statusMessage.value = "Stopped";
-    statusType.value = "info";
-
-    if (pollInterval !== null) {
-      clearInterval(pollInterval);
-      pollInterval = null;
-    }
-    detectedServers.value = [];
-    history.value = [];
-  } catch (error) {
-    statusMessage.value = `Stop failed: ${error}`;
-    statusType.value = "error";
-    console.error("Failed to stop monitoring:", error);
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-async function fetchServers() {
-  try {
-    const servers = await getDetectedServers();
-    detectedServers.value = servers;
-
-    if (servers.length > 0 && isMonitoring.value) {
-      const gameServers = servers.filter((s) => s.is_game_server);
-      if (gameServers.length > 0) {
-        statusMessage.value = "Connected";
-        statusType.value = "success";
-      } else {
-        statusMessage.value = "Scanning...";
-        statusType.value = "info";
-      }
-    } else if (isMonitoring.value) {
-      statusMessage.value = "Scanning...";
-      statusType.value = "info";
-    }
-  } catch (error) {
-    console.error("Failed to fetch servers:", error);
-  }
-}
-
-async function addToRoutes(ip: string) {
-  addingRoute.value = ip;
-  try {
-    await addDetectedIpToRoutes(ip);
-    statusMessage.value = "Route added";
-    statusType.value = "success";
-    emit("new-range-detected", ip);
-  } catch (error) {
-    statusMessage.value = `Failed: ${error}`;
-    statusType.value = "error";
-  } finally {
-    addingRoute.value = null;
-  }
-}
-
-// Cleanup
-onUnmounted(() => {
-  if (pollInterval !== null) {
-    clearInterval(pollInterval);
-    pollInterval = null;
-  }
-  if (isMonitoring.value) {
-    void tauriStopMonitoring().catch((err) => {
-      console.warn("[ServerDetection] stopMonitoring on unmount failed:", err);
-    });
-  }
-});
 </script>
 
 <style scoped>

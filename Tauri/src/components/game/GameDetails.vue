@@ -13,6 +13,9 @@ const props = defineProps<{
   loading?: boolean;
   isConnected: boolean;
   isLoading: boolean;
+  isTrafficMonitoring?: boolean;
+  trafficStatusText?: string;
+  trafficStatusType?: "info" | "success";
   vpnConfig: any;
   gameIpRanges: Set<string>;
 }>();
@@ -20,6 +23,7 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: Server | null): void;
   (e: "connect"): void;
   (e: "disconnect"): void;
+  (e: "new-range-detected", ip: string): void;
 }>();
 
 const selectedServer = computed({
@@ -38,6 +42,8 @@ const vpnMapLocation = computed((): [number, number] | null => {
 
 const { clientLocation, clientLabel, loading: clientGeoLoading, error: clientGeoError } =
   useClientGeo();
+
+const gameIpRangesList = computed(() => Array.from(props.gameIpRanges));
 </script>
 
 <template>
@@ -90,9 +96,37 @@ const { clientLocation, clientLabel, loading: clientGeoLoading, error: clientGeo
           </div>
           <div>
             <span class="text-zinc-600 block text-xs">Allowed IPs</span>
-            <span class="text-white font-mono truncate" :title="Array.from(gameIpRanges).join(',')">
-              {{ gameIpRanges.size }} Ranges Loaded
-            </span>
+            <div class="flex flex-col gap-1">
+              <div class="flex items-center gap-2">
+                <span class="text-white font-mono truncate" :title="gameIpRangesList.join(',')">
+                  {{ gameIpRanges.size }} Ranges Loaded
+                </span>
+                <div
+                  v-if="isTrafficMonitoring"
+                  class="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                  title="Traffic monitor active"
+                ></div>
+              </div>
+              <p
+                class="text-[11px] font-medium uppercase tracking-wider"
+                :class="
+                  trafficStatusType === 'success'
+                    ? 'text-emerald-300/90'
+                    : 'text-zinc-500'
+                "
+              >
+                {{ trafficStatusText || (isTrafficMonitoring ? "Monitoring active" : "Monitoring idle") }}
+              </p>
+              <div v-if="gameIpRanges.size > 0" class="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                <span
+                  v-for="ip in gameIpRangesList"
+                  :key="ip"
+                  class="px-1.5 py-0.5 bg-zinc-800 text-zinc-400 text-[10px] rounded font-mono border border-zinc-700"
+                >
+                  {{ ip }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

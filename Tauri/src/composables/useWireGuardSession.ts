@@ -39,7 +39,7 @@ export function useWireGuardSession() {
     }
 
     const allowedIps = Array.from(gameIpRanges.value).join(", ");
-    const routeIps = allowedIps || "0.0.0.0/0";
+    const routeIps = allowedIps || "192.0.2.1/32";
 
     return `
 [Interface]
@@ -57,11 +57,11 @@ PersistentKeepalive = 25
 `;
   }
 
-  async function connect(selectedServer: Server) {
+  async function connect(selectedServer: Server): Promise<boolean> {
     const cfg = vpnStore.getVpnConfig();
     if (!cfg.profileId) {
       status.value = "Please register a VPN profile first.";
-      return;
+      return false;
     }
 
     isLoading.value = true;
@@ -93,9 +93,11 @@ PersistentKeepalive = 25
       status.value = `Connected - ${serverConfig.server_endpoint}`;
       isConnected.value = true;
       currentPing.value = Math.floor(Math.random() * 10) + 20;
+      return true;
     } catch (error) {
       console.error(error);
       status.value = "Connection failed: " + error;
+      return false;
     } finally {
       isLoading.value = false;
     }

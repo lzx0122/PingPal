@@ -189,4 +189,49 @@ app.delete("/profiles/:id", async (c) => {
   }
 });
 
+// Learn and persist a detected game IP range for the selected game
+app.post("/games/:gameId/ranges/learn", async (c) => {
+  try {
+    const jwtPayload = c.get("jwtPayload");
+    const userId = jwtPayload?.sub;
+    if (!userId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const gameId = c.req.param("gameId");
+    const { ipRange } = await c.req.json<{ ipRange: string }>();
+
+    if (!gameId || !ipRange) {
+      return c.json({ error: "Missing required fields" }, 400);
+    }
+
+    const trimmedRange = ipRange.trim();
+    const ipv4CidrRegex =
+      /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\/(3[0-2]|[12]?\d)$/;
+    if (!ipv4CidrRegex.test(trimmedRange)) {
+      return c.json({ error: "Invalid IPv4 CIDR format" }, 400);
+    }
+
+    const { error } = await supabase.from("game_ip_ranges").insert([
+      {
+        game_id: gameId,
+        ip_range: trimmedRange,
+        user_id: userId,
+      },
+    ]);
+
+    if (error) {
+      if (error.code === "23505") {
+        return c.json({ success: true, duplicate: true });
+      }
+      throw error;
+    }
+
+    return c.json({ success: true });
+  } catch (e) {
+    console.error("Learn game range error:", e);
+    return c.json({ error: "Failed to persist learned game range" }, 500);
+  }
+});
+
 export default app;

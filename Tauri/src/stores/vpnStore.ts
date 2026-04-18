@@ -10,7 +10,6 @@ export const useVpnStore = defineStore("vpn", () => {
 
   const isConfigured = computed(() => !!profileId.value && !!privateKey.value);
 
-  /** One-time migration from legacy `localStorage.vpn_config` (removed after success). */
   async function migrateLegacyLocalStorage() {
     if (typeof localStorage === "undefined") return;
     const raw = localStorage.getItem("vpn_config");
@@ -35,7 +34,6 @@ export const useVpnStore = defineStore("vpn", () => {
         );
       }
     } catch {
-      /* drop corrupt legacy */
     } finally {
       localStorage.removeItem("vpn_config");
     }
@@ -79,7 +77,6 @@ export const useVpnStore = defineStore("vpn", () => {
     await removeItem("vpn_address");
   }
 
-  // Returns all required data to connect a WireGuard tunnel
   function getVpnConfig() {
     return {
       profileId: profileId.value,

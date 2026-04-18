@@ -5,7 +5,6 @@ import { createClient } from "@supabase/supabase-js";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { execSync } from "child_process";
 
-// 1. Configuration
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const PORT = Number(process.env.PORT) || 3000;
@@ -19,7 +18,6 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = new Hono();
 
-// 2. WireGuard Helpers
 function runCommand(cmd: string): string {
   try {
     return execSync(cmd, { encoding: "utf-8" }).trim();
@@ -65,7 +63,6 @@ interface LocationData {
 }
 
 async function getLocationFromIp(ip: string): Promise<LocationData> {
-  // Only allow setting location via environment variables
   if (process.env.LOCATION_LAT && process.env.LOCATION_LON && process.env.COUNTRY_CODE) {
     console.log("Using manually configured location from environment variables");
     return {
@@ -95,7 +92,7 @@ PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING 
 
   peers.forEach((p) => {
     config += `[Peer]
-  // User: ${p.user_id} - Device: ${p.device_name}
+  # User: ${p.user_id} - Device: ${p.device_name}
 PublicKey = ${p.public_key}
 AllowedIPs = ${p.allowed_ip}/32
 
@@ -104,12 +101,7 @@ AllowedIPs = ${p.allowed_ip}/32
 
   writeFileSync(`/etc/wireguard/${WG_INTERFACE}.conf`, config);
 
-  // Reload without dropping connections if possible, or just quick restart
   try {
-    // syncconf is better but requires `wg-quick strip` output.
-    // For simplicity in this v1, using wg-quick down/up or syncconf if available.
-    // Ideally: wg syncconf wg0 <(wg-quick strip wg0)
-    // But since we wrote the file:
     runCommand(`wg-quick strip ${WG_INTERFACE} > /tmp/wg0.strip`);
     runCommand(`wg syncconf ${WG_INTERFACE} /tmp/wg0.strip`);
     console.log("WireGuard config reloaded.");
@@ -122,12 +114,9 @@ AllowedIPs = ${p.allowed_ip}/32
   }
 }
 
-// 3. Main Logic
-// 3. Main Logic
 async function main() {
   console.log("Starting VPS Agent...");
 
-  // A. Auto-Provisioning
   let privateKey: string, publicKey: string;
   try {
     const keys = ensureKeys();
@@ -149,8 +138,6 @@ async function main() {
 
   console.log(`Region/IP: ${publicIp}, Setup Public Key: ${publicKey}`);
 
-  // Check/Register in Supabase
-  // Uses maybeSingle() to avoid throwing if no rows found
   const { data: server, error: fetchError } = await supabase
     .from("servers")
     .select("*")
@@ -181,13 +168,11 @@ async function main() {
 
     if (insertError) {
       console.error("Failed to register server:", insertError);
-      // Retry or exit? For now, log and continue, though sync won't work well without record
     }
   } else {
     console.log("Server found in DB.");
   }
 
-  // B. Initial Sync
   try {
     const { data: peers, error } = await supabase
       .from("vpn_profiles")
@@ -204,7 +189,6 @@ async function main() {
     console.error("Initial sync failed:", e);
   }
 
-  // C. Realtime Subscription
   console.log("Subscribing to Realtime changes...");
   supabase
     .channel("vpn_profiles_changes")
@@ -218,7 +202,6 @@ async function main() {
       },
       async (payload) => {
         console.log("Change detected!", payload.eventType);
-        // Re-fetch all to be safe and simple (prevents drift)
         const { data: currentPeers } = await supabase
           .from("vpn_profiles")
           .select("*")
@@ -242,7 +225,6 @@ async function main() {
       }
     });
 
-  // D. Hono Server (Health Check)
   app.get("/health", (c) => c.json({ status: "ok", ip: publicIp }));
   app.get("/", (c) => c.text("PingPal VPS Agent Running."));
 

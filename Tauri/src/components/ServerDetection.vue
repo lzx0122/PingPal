@@ -283,9 +283,8 @@ import {
   Trophy,
 } from "lucide-vue-next";
 
-// Props
 interface Props {
-  processName: string; // e.g., "TslGame.exe"
+  processName: string;
   gameId?: string;
   knownRanges?: Set<string>;
 }
@@ -312,17 +311,12 @@ const {
   onNewRangeDetected: (ip) => emit("new-range-detected", ip),
 });
 
-// History State
-const MAX_HISTORY = 60; // Keep last 60 data points
+const MAX_HISTORY = 60;
 
-// Note: original code had strict DataPoint interface, simplifying for replacement/merge
 const history = ref<any[]>([]);
 
-// Computed for Primary vs Others
 const sortedServers = computed(() => {
-  // 1. Filter only Game Servers (UDP)
   const udpServers = detectedServers.value.filter((s) => s.is_game_server);
-  // 2. Sort by total traffic rate descending
   return udpServers.sort((a, b) => {
     const rateA = a.send_rate + a.recv_rate;
     const rateB = b.send_rate + b.recv_rate;
@@ -332,11 +326,9 @@ const sortedServers = computed(() => {
 
 const primaryServer = computed(() => {
   if (sortedServers.value.length === 0) return null;
-  // The top one is the primary
   return sortedServers.value[0];
 });
 
-// Watch primary server to push history
 watch(primaryServer, (newVal) => {
   if (newVal) {
     history.value.push({
@@ -344,23 +336,20 @@ watch(primaryServer, (newVal) => {
       send: newVal.send_rate,
       recv: newVal.recv_rate,
     });
-    // Limit history size
     if (history.value.length > MAX_HISTORY) {
       history.value.shift();
     }
   }
 });
 
-// Chart Helpers
 const maxChartValue = computed(() => {
   if (history.value.length < 2) return 1024;
   return Math.max(
     ...history.value.map((d) => Math.max(d.send, d.recv)),
-    1024, // Min 1KB
+    1024,
   );
 });
 
-// Separate Line and Area paths
 const sendPathLine = computed(() => createPath("send", false));
 const sendPathArea = computed(() => createPath("send", true));
 const recvPathLine = computed(() => createPath("recv", false));
@@ -375,17 +364,15 @@ function createPath(key: "send" | "recv", isArea: boolean) {
 
   const points = history.value.map((d, i) => {
     const x = (i / (history.value.length - 1)) * width;
-    const y = height - (d[key] / maxVal) * height; // Invert Y
+    const y = height - (d[key] / maxVal) * height;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
 
   if (isArea) {
-    // Start at bottom-left, go to first point, follow points, go to bottom-right, close
     const firstX = points[0].split(",")[0];
     const lastX = points[points.length - 1].split(",")[0];
     return `M ${firstX},${height} L ${points.join(" L ")} L ${lastX},${height} Z`;
   } else {
-    // Just the line
     return `M ${points.join(" L ")}`;
   }
 }

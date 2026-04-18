@@ -1,6 +1,5 @@
 import { API_BASE_URL } from "./apiBase";
 
-/** JSON fetch with shared base URL (no auth). Used by apiFetch and anywhere that must avoid store cycles. */
 export async function fetchJson(
   path: string,
   init?: RequestInit,

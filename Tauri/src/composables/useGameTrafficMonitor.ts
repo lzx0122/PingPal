@@ -64,7 +64,6 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
   const activityType = ref<MonitorActivityType>("info");
   const addingRoute = ref<string | null>(null);
 
-  // 統一以 postRange（含前綴，如 "1.2.3.4/32"）作為所有去重 key
   const autoRoutedRanges = ref(new Set<string>());
   const autoPostedRanges = ref(new Set<string>());
   const autoPostingRanges = ref(new Set<string>());
@@ -210,7 +209,6 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
       console.error("Failed to fetch servers:", error);
     }
 
-    // 獨立 try/catch，確保 TCP learn 不被上方錯誤影響
     try {
       await learnSessionIpsFromSidecar();
     } catch (error) {

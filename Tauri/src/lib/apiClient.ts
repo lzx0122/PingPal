@@ -15,10 +15,6 @@ export function configureApiClient(provider: AuthProvider) {
   authProvider = provider;
 }
 
-/**
- * Centralized API requests: same base URL + JSON defaults as the rest of the app.
- * Authenticated calls attach Bearer; 401 clears session unless `public: true`.
- */
 export async function apiFetch(
   path: string,
   options: ApiFetchOptions = {},

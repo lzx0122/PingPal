@@ -24,11 +24,8 @@ const { contains } = useFilter({ sensitivity: "base" })
 const filterState = reactive({
   search: "",
   filtered: {
-    /** The count of all visible items. */
     count: 0,
-    /** Map from visible item id to its search score. */
     items: new Map() as Map<string, number>,
-    /** Set of groups with at least one visible item. */
     groups: new Set() as Set<string>,
   },
 })
@@ -36,15 +33,12 @@ const filterState = reactive({
 function filterItems() {
   if (!filterState.search) {
     filterState.filtered.count = allItems.value.size
-    // Do nothing, each item will know to show itself because search is empty
     return
   }
 
-  // Reset the groups
   filterState.filtered.groups = new Set()
   let itemCount = 0
 
-  // Check which items should be included
   for (const [id, value] of allItems.value) {
     const score = contains(value, filterState.search)
     filterState.filtered.items.set(id, score ? 1 : 0)
@@ -52,7 +46,6 @@ function filterItems() {
       itemCount++
   }
 
-  // Check which groups have at least 1 item shown
   for (const [groupId, group] of allGroups.value) {
     for (const itemId of group) {
       if (filterState.filtered.items.get(itemId)! > 0) {

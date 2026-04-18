@@ -7,7 +7,6 @@ use windows_sys::Win32::Security::{
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
-/// Enable a specific Windows privilege for the current process
 fn enable_privilege(privilege_name: &str, token_handle: isize) -> Result<(), String> {
     unsafe {
         let mut luid: LUID = std::mem::zeroed();
@@ -63,7 +62,6 @@ fn enable_privilege(privilege_name: &str, token_handle: isize) -> Result<(), Str
     Ok(())
 }
 
-/// Enable all privileges required for WireGuard to create named pipes in protected namespace
 pub fn enable_se_restore_privilege() -> Result<(), String> {
     unsafe {
         let mut token_handle = 0;
@@ -78,11 +76,6 @@ pub fn enable_se_restore_privilege() -> Result<(), String> {
             return Err(format!("OpenProcessToken failed: {}", GetLastError()));
         }
 
-        // List of privileges required for WireGuard named pipe access
-        // SeRestorePrivilege: Required for certain file operations
-        // SeBackupPrivilege: Required for backup operations and protected namespace access
-        // SeCreateSymbolicLinkPrivilege: Often required for protected pipes
-        // SeSecurityPrivilege: Required for accessing security descriptors
         let required_privileges = [
             "SeRestorePrivilege",
             "SeBackupPrivilege",
@@ -106,10 +99,8 @@ pub fn enable_se_restore_privilege() -> Result<(), String> {
             }
         }
 
-        // Clean up
         CloseHandle(token_handle);
 
-        // Return error only if ALL privileges failed
         if success_count == 0 {
             return Err(format!(
                 "failed to enable any privilege:\n{}",

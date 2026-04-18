@@ -12,7 +12,7 @@ async function getStore() {
 export async function setItem<T>(key: string, value: T): Promise<void> {
   const store = await getStore();
   await store.set(key, value);
-  await store.save(); // ensure it writes to disk immediately
+  await store.save();
 }
 
 export async function getItem<T>(key: string): Promise<T | null> {

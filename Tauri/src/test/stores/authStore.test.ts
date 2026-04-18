@@ -21,7 +21,6 @@ vi.mock("../../lib/store", () => {
 
 import * as tauriStore from "../../lib/store";
 
-// Mock global fetch
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch as any;
 
@@ -55,7 +54,6 @@ describe("Auth Store", () => {
     expect(auth.username).toBe("test_user");
     expect(auth.isAuthenticated).toBe(true);
 
-    // Should save to Tauri Store
     expect(tauriStore.setItem).toHaveBeenCalledWith("auth_token", "test_token");
     expect(tauriStore.setItem).toHaveBeenCalledWith("username", "test_user");
   });

@@ -5,15 +5,12 @@ pub fn init_dev_monitor(app_handle: tauri::AppHandle) {
     use std::time::Duration;
 
     tauri::async_runtime::spawn(async move {
-        // We only instantiate this heavy tracker in Dev mode
         let mut sys = System::new_all();
-        // Give sysinfo a moment to establish baseline
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         let pid = sysinfo::Pid::from_u32(std::process::id());
-        
+
         loop {
-            // sysinfo > 0.30 removed specific update params, usually just refresh_all or refresh_specifics
             sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
             sys.refresh_cpu_usage();
             sys.refresh_memory();
@@ -41,7 +38,6 @@ pub fn init_dev_monitor(app_handle: tauri::AppHandle) {
                 tracing::warn!("Failed to emit dev-metrics: {}", e);
             }
 
-            // Polling every 1 second is enough for a HUD
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });

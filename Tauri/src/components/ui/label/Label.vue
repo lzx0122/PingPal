@@ -11,7 +11,6 @@ const props = defineProps<{
 const htmlFor = computed(() => props.for);
 
 function onLabelMouseDown(e: MouseEvent) {
-  // Same as reka-ui Label: avoid selecting text on double-click
   if (!e.defaultPrevented && e.detail > 1) e.preventDefault();
 }
 </script>

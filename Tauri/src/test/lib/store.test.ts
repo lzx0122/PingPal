@@ -20,7 +20,6 @@ vi.mock("@tauri-apps/plugin-store", () => {
   };
 });
 
-// Import the wrapper *after* the mock is defined
 import { setItem, getItem, removeItem, clearStore } from "../../lib/store";
 
 describe("Tauri Store Wrapper", () => {

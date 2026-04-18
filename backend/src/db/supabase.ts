@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.SUPABASE_URL!;
-// Use Service Role Key to bypass RLS for admin operations
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY!;
 
@@ -21,7 +20,7 @@ export interface Server {
 
 export interface GameIpRange {
   id?: string;
-  game_id: string; // e.g. 'pubg'
-  ip_range: string; // CIDR, e.g. '1.2.3.0/24'
+  game_id: string;
+  ip_range: string;
   created_at?: string;
 }

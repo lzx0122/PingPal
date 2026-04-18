@@ -15,14 +15,11 @@ import geo from "./api/geo.js";
 
 const app = new Hono();
 
-// Enable CORS for frontend development
 app.use("/*", cors());
 
-// JWT Middleware
 app.use("/api/*", async (c, next) => {
   const path = c.req.path;
 
-  // 1. Public endpoints
   if (
     path === "/api/auth/login" ||
     path === "/api/auth/admin-login" ||
@@ -34,7 +31,6 @@ app.use("/api/*", async (c, next) => {
     return;
   }
 
-  // 2. Authentication required for remaining endpoints
   const jwtMiddleware = jwt({
     secret: process.env.JWT_SECRET || "default_dev_secret",
     alg: "HS256",
@@ -43,11 +39,9 @@ app.use("/api/*", async (c, next) => {
   return jwtMiddleware(c, next);
 });
 
-// Admin Authorization Middleware
 app.use("/api/*", async (c, next) => {
   const path = c.req.path;
 
-  // Skip public endpoints
   if (
     path === "/api/auth/login" ||
     path === "/api/auth/admin-login" ||
@@ -62,7 +56,6 @@ app.use("/api/*", async (c, next) => {
   const payload = c.get("jwtPayload");
   const isAdmin = payload?.role === "admin";
 
-  // 3. Authorization for Admin endpoints
   const isAdminRoute =
     path.startsWith("/api/users") ||
     path.startsWith("/api/stats") ||
@@ -76,13 +69,9 @@ app.use("/api/*", async (c, next) => {
   await next();
 });
 
-// === VPN Routes ===
 app.route("/api/vpn", vpn);
 
-// === Geo (public GET /api/geo/*; JWT skipped in middleware above) ===
 app.route("/api/geo", geo);
-
-// === Auth ===
 
 app.post("/api/auth/admin-login", async (c) => {
   try {
@@ -95,7 +84,6 @@ app.post("/api/auth/admin-login", async (c) => {
       return c.json({ error: "Username and password required" }, 400);
     }
 
-    // Fetch user from DB (admin_users table)
     const { data: user, error } = await supabase
       .from("admin_users")
       .select("*")
@@ -106,18 +94,16 @@ app.post("/api/auth/admin-login", async (c) => {
       return c.json({ error: "Invalid credentials" }, 401);
     }
 
-    // Verify password
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) {
       return c.json({ error: "Invalid credentials" }, 401);
     }
 
-    // Generate Admin Token
     const payload = {
       sub: user.id,
       username: user.username,
       role: "admin",
-      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
     };
     const secret = process.env.JWT_SECRET || "default_dev_secret";
     const token = await sign(payload, secret);
@@ -140,7 +126,6 @@ app.post("/api/auth/login", async (c) => {
       return c.json({ error: "Username and password required" }, 400);
     }
 
-    // Fetch user from DB (VPN users table)
     const { data: user, error } = await supabase
       .from("users")
       .select("*")
@@ -151,22 +136,19 @@ app.post("/api/auth/login", async (c) => {
       return c.json({ error: "Invalid credentials" }, 401);
     }
 
-    // Check if user is active
     if (!user.is_active) {
       return c.json({ error: "Account is disabled" }, 403);
     }
 
-    // Verify password
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) {
       return c.json({ error: "Invalid credentials" }, 401);
     }
 
-    // Generate Token
     const payload = {
       sub: user.id,
       username: user.username,
-      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
     };
     const secret = process.env.JWT_SECRET || "default_dev_secret";
     const token = await sign(payload, secret);
@@ -182,9 +164,6 @@ app.get("/", (c) => {
   return c.redirect("/admin");
 });
 
-// === User Management ===
-
-// Get all users (excluding password hashes)
 app.get("/api/users", async (c) => {
   try {
     const { data, error } = await supabase
@@ -201,7 +180,6 @@ app.get("/api/users", async (c) => {
   }
 });
 
-// Create new user
 app.post("/api/users", async (c) => {
   try {
     const body = await c.req.json<{
@@ -214,85 +192,6 @@ app.post("/api/users", async (c) => {
       return c.json({ error: "Username is required" }, 400);
     }
 
-    // Generate password if requested, otherwise use provided password
-    let password: string;
-    let generatedPassword: string | undefined;
-
-    if (body.autoGenerate) {
-      password = generateRandomPassword();
-      generatedPassword = password; // Return to admin for one-time view
-    } else if (body.password) {
-      password = body.password;
-    } else {
-      return c.json(
-        { error: "Either password or autoGenerate must be provided" },
-        400,
-      );
-    }
-
-    // Hash the password
-    const passwordHash = await hashPassword(password);
-
-    // Insert user into database
-    const { data, error } = await supabase
-      .from("users")
-      .insert([
-        {
-          username: body.username,
-          password_hash: passwordHash,
-        },
-      ])
-      .select("id, username, created_at, updated_at, is_active")
-      .single();
-
-    if (error) {
-      // Check for unique constraint violation
-      if (error.code === "23505") {
-        return c.json({ error: "Username already exists" }, 409);
-      }
-      throw error;
-    }
-
-    // Return user data with password if auto-generated
-    return c.json(
-      {
-        user: data,
-        password: generatedPassword,
-      },
-      201,
-    );
-  } catch (error) {
-    console.error("Error creating user:", error);
-    return c.json({ error: "Failed to create user" }, 500);
-  }
-});
-
-// Delete user
-app.delete("/api/users/:id", async (c) => {
-  try {
-    const id = c.req.param("id");
-
-    const { error } = await supabase.from("users").delete().eq("id", id);
-
-    if (error) throw error;
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    return c.json({ error: "Failed to delete user" }, 500);
-  }
-});
-
-// Reset user password
-app.put("/api/users/:id/password", async (c) => {
-  try {
-    const id = c.req.param("id");
-    const body = await c.req.json<{
-      password?: string;
-      autoGenerate?: boolean;
-    }>();
-
-    // Generate password if requested, otherwise use provided password
     let password: string;
     let generatedPassword: string | undefined;
 
@@ -308,10 +207,79 @@ app.put("/api/users/:id/password", async (c) => {
       );
     }
 
-    // Hash the password
     const passwordHash = await hashPassword(password);
 
-    // Update user password
+    const { data, error } = await supabase
+      .from("users")
+      .insert([
+        {
+          username: body.username,
+          password_hash: passwordHash,
+        },
+      ])
+      .select("id, username, created_at, updated_at, is_active")
+      .single();
+
+    if (error) {
+      if (error.code === "23505") {
+        return c.json({ error: "Username already exists" }, 409);
+      }
+      throw error;
+    }
+
+    return c.json(
+      {
+        user: data,
+        password: generatedPassword,
+      },
+      201,
+    );
+  } catch (error) {
+    console.error("Error creating user:", error);
+    return c.json({ error: "Failed to create user" }, 500);
+  }
+});
+
+app.delete("/api/users/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+
+    const { error } = await supabase.from("users").delete().eq("id", id);
+
+    if (error) throw error;
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    return c.json({ error: "Failed to delete user" }, 500);
+  }
+});
+
+app.put("/api/users/:id/password", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const body = await c.req.json<{
+      password?: string;
+      autoGenerate?: boolean;
+    }>();
+
+    let password: string;
+    let generatedPassword: string | undefined;
+
+    if (body.autoGenerate) {
+      password = generateRandomPassword();
+      generatedPassword = password;
+    } else if (body.password) {
+      password = body.password;
+    } else {
+      return c.json(
+        { error: "Either password or autoGenerate must be provided" },
+        400,
+      );
+    }
+
+    const passwordHash = await hashPassword(password);
+
     const { data, error } = await supabase
       .from("users")
       .update({
@@ -339,7 +307,6 @@ app.put("/api/users/:id/password", async (c) => {
   }
 });
 
-// Get all servers
 app.get("/api/servers", async (c) => {
   try {
     const { data, error } = await supabase
@@ -349,7 +316,6 @@ app.get("/api/servers", async (c) => {
 
     if (error) throw error;
 
-    // Transform to match frontend expectations
     const servers = (data || []).map((server: any) => ({
       id: server.id,
       name: server.name || `Server ${server.ip}`,
@@ -369,7 +335,6 @@ app.get("/api/servers", async (c) => {
   }
 });
 
-// Add new server
 app.post("/api/servers", async (c) => {
   try {
     const body = await c.req.json<{ ip: string; region: string }>();
@@ -390,14 +355,12 @@ app.post("/api/servers", async (c) => {
       .single();
 
     if (error) {
-      // Check for unique constraint violation
       if (error.code === "23505") {
         return c.json({ error: "Server with this IP already exists" }, 409);
       }
       throw error;
     }
 
-    // Transform to match frontend expectations
     const newServer = {
       ip: data.ip,
       region: data.region,
@@ -411,7 +374,6 @@ app.post("/api/servers", async (c) => {
   }
 });
 
-// Update server
 app.put("/api/servers/:ip", async (c) => {
   try {
     const oldIp = c.req.param("ip");
@@ -439,7 +401,6 @@ app.put("/api/servers/:ip", async (c) => {
       throw error;
     }
 
-    // Transform to match frontend expectations
     const updatedServer = {
       ip: data.ip,
       region: data.region,
@@ -453,7 +414,6 @@ app.put("/api/servers/:ip", async (c) => {
   }
 });
 
-// Delete server
 app.delete("/api/servers/:ip", async (c) => {
   try {
     const ip = c.req.param("ip");
@@ -469,9 +429,6 @@ app.delete("/api/servers/:ip", async (c) => {
   }
 });
 
-// === Game IP Ranges Endpoints ===
-
-// Get IP ranges for a specific game
 app.get("/api/games/:gameId/ranges", async (c) => {
   try {
     const gameId = c.req.param("gameId");
@@ -482,7 +439,6 @@ app.get("/api/games/:gameId/ranges", async (c) => {
 
     if (error) throw error;
 
-    // Return array of strings
     return c.json((data || []).map((row: any) => row.ip_range));
   } catch (error) {
     console.error("Error fetching game IP ranges:", error);
@@ -490,7 +446,6 @@ app.get("/api/games/:gameId/ranges", async (c) => {
   }
 });
 
-// Add new IP range for a specific game
 app.post("/api/games/:gameId/ranges", async (c) => {
   try {
     const gameId = c.req.param("gameId");
@@ -512,7 +467,6 @@ app.post("/api/games/:gameId/ranges", async (c) => {
       .single();
 
     if (error) {
-      // If unique constraint violation, just return success (idempotent)
       if (error.code === "23505") {
         return c.json({ message: "Range already exists" }, 200);
       }
@@ -526,7 +480,6 @@ app.post("/api/games/:gameId/ranges", async (c) => {
   }
 });
 
-// Delete IP range for a specific game
 app.delete("/api/games/:gameId/ranges", async (c) => {
   try {
     const gameId = c.req.param("gameId");
@@ -551,7 +504,6 @@ app.delete("/api/games/:gameId/ranges", async (c) => {
   }
 });
 
-// Get stats
 app.get("/api/stats", async (c) => {
   try {
     const { data, error } = await supabase.from("servers").select("region");
@@ -573,14 +525,10 @@ app.get("/api/stats", async (c) => {
   }
 });
 
-// Helper to find the correct admin-ui/dist path
 function resolveAdminUiPath(): string | null {
   const candidates = [
-    // Standard local/docker path
     join(process.cwd(), "admin-ui", "dist"),
-    // Vercel monorepo structure (cwd might be root, backend is subdir)
     join(process.cwd(), "backend", "admin-ui", "dist"),
-    // Relative to source file (commonjs/esm build diffs)
     join(__dirname, "..", "admin-ui", "dist"),
     join(__dirname, "..", "..", "admin-ui", "dist"),
   ];
@@ -593,7 +541,6 @@ function resolveAdminUiPath(): string | null {
   return null;
 }
 
-// Serve static assets (CSS, JS) from admin-ui/dist/assets
 app.get("/assets/*", (c) => {
   const assetPath = c.req.path.replace("/assets/", "");
   const distPath = resolveAdminUiPath();
@@ -603,7 +550,6 @@ app.get("/assets/*", (c) => {
     if (existsSync(fullPath)) {
       const content = readFileSync(fullPath);
 
-      // Set appropriate content type
       const ext = assetPath.split(".").pop()?.toLowerCase();
       const contentTypes: Record<string, string> = {
         js: "application/javascript",
@@ -622,7 +568,6 @@ app.get("/assets/*", (c) => {
   return c.text("Asset not found", 404);
 });
 
-// Serve vite.svg from admin-ui/dist
 app.get("/vite.svg", (c) => {
   const distPath = resolveAdminUiPath();
   if (distPath) {
@@ -635,7 +580,6 @@ app.get("/vite.svg", (c) => {
   return c.text("Not found", 404);
 });
 
-// Serve static files from admin-ui/dist (production build)
 app.get("/admin", (c) => {
   const distPath = resolveAdminUiPath();
 
@@ -647,7 +591,6 @@ app.get("/admin", (c) => {
     }
   }
 
-  // Debugging Vercel file system
   try {
     const debug = {
       cwd: process.cwd(),
@@ -657,7 +600,6 @@ app.get("/admin", (c) => {
         join(process.cwd(), "backend", "admin-ui", "dist"),
       ],
       filesInCwd: readdirSync(process.cwd()),
-      // Check if backend dir exists in cwd
       backendExists: existsSync(join(process.cwd(), "backend")),
       backendFiles: existsSync(join(process.cwd(), "backend"))
         ? readdirSync(join(process.cwd(), "backend"))

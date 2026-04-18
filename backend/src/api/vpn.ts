@@ -3,7 +3,6 @@ import { supabase } from "../db/supabase.js";
 
 const app = new Hono();
 
-// Register new device (no server selection)
 app.post("/register", async (c) => {
   try {
     const jwtPayload = c.get("jwtPayload");
@@ -18,7 +17,6 @@ app.post("/register", async (c) => {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
-    // Check device count limit (max 5 devices per user)
     const { count, error: countError } = await supabase
       .from("vpn_profiles")
       .select("*", { count: "exact", head: true })
@@ -39,7 +37,6 @@ app.post("/register", async (c) => {
       );
     }
 
-    // Call RPC to register device
     const { data, error } = await supabase.rpc("register_vpn_device", {
       p_user_id: userId,
       p_device_name: deviceName,
@@ -62,7 +59,6 @@ app.post("/register", async (c) => {
   }
 });
 
-// Connect to specific server (allocates IP if needed)
 app.post("/connect", async (c) => {
   try {
     const jwtPayload = c.get("jwtPayload");
@@ -77,7 +73,6 @@ app.post("/connect", async (c) => {
       return c.json({ error: "Missing required fields" }, 400);
     }
 
-    // Verify profile belongs to user
     const { data: profile, error: profileError } = await supabase
       .from("vpn_profiles")
       .select("id")
@@ -89,7 +84,6 @@ app.post("/connect", async (c) => {
       return c.json({ error: "Profile not found" }, 404);
     }
 
-    // Call RPC to allocate IP for this server
     const { data, error } = await supabase.rpc("allocate_server_ip", {
       p_profile_id: profileId,
       p_server_ip: serverIp,
@@ -111,7 +105,6 @@ app.post("/connect", async (c) => {
   }
 });
 
-// Get user profiles (devices)
 app.get("/profiles", async (c) => {
   try {
     const jwtPayload = c.get("jwtPayload");
@@ -132,14 +125,12 @@ app.get("/profiles", async (c) => {
   }
 });
 
-// Get allocations for a specific profile
 app.get("/profiles/:id/allocations", async (c) => {
   try {
     const jwtPayload = c.get("jwtPayload");
     const userId = jwtPayload.sub;
     const profileId = c.req.param("id");
 
-    // Verify profile belongs to user
     const { data: profile, error: profileError } = await supabase
       .from("vpn_profiles")
       .select("id")
@@ -151,7 +142,6 @@ app.get("/profiles/:id/allocations", async (c) => {
       return c.json({ error: "Profile not found" }, 404);
     }
 
-    // Get allocations
     const { data, error } = await supabase
       .from("vpn_server_allocations")
       .select("*")
@@ -167,7 +157,6 @@ app.get("/profiles/:id/allocations", async (c) => {
   }
 });
 
-// Delete profile (device)
 app.delete("/profiles/:id", async (c) => {
   try {
     const jwtPayload = c.get("jwtPayload");
@@ -189,7 +178,6 @@ app.delete("/profiles/:id", async (c) => {
   }
 });
 
-// Learn and persist a detected game IP range for the selected game
 app.post("/games/:gameId/ranges/learn", async (c) => {
   try {
     const jwtPayload = c.get("jwtPayload");

@@ -1,5 +1,3 @@
-// import fetch from "node-fetch"; // Using native fetch
-
 const PUBG_RANGES = [
   // Korea (AWS)
   "13.124.0.0/16",
@@ -27,10 +25,8 @@ const PUBG_RANGES = [
   "13.112.0.0/16",
   "52.192.0.0/16",
   "54.248.0.0/16",
-  // Tencent Cloud / Other CDN (PUBG 實際使用)
   "85.236.96.0/22",
   "103.28.54.0/24",
-  // AWS Global Accelerator (PUBG 使用)
   "75.2.0.0/16",
   "99.77.0.0/16",
 ];

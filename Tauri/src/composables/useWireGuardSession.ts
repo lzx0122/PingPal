@@ -5,7 +5,6 @@ import { useVpnProfile } from "@/composables/useVpnProfile";
 import { apiFetch } from "@/lib/apiClient";
 import type { Server } from "@/data/games";
 
-/** Shared connection UI state (MainLayout + GameDetailView). */
 const status = ref("Ready");
 const isConnected = ref(false);
 const isLoading = ref(false);
@@ -38,10 +37,8 @@ export function useWireGuardSession() {
       throw new Error("No VPN configuration found. Please register first.");
     }
 
-    // Default to an internal unreachable IP instead of 0.0.0.0/0 to prevent
-    // blackholing all traffic when no game IPs are known yet.
     const allowedIps = Array.from(gameIpRanges.value).join(", ");
-    const routeIps = allowedIps || "10.0.0.0/24"; // Fake/internal range to avoid default route override
+    const routeIps = allowedIps || "10.0.0.0/24";
 
     return `
 [Interface]

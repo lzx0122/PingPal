@@ -24,9 +24,6 @@ export function useVpnProfile() {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
 
-  /**
-   * Generates a new WireGuard keypair using @stablelib.
-   */
   const generateKeys = async (): Promise<{
     privateKey: string;
     publicKey: string;
@@ -84,7 +81,6 @@ export function useVpnProfile() {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete device");
-      // Also refresh profiles list
       await fetchProfiles();
     } catch (e: any) {
       console.error("Delete Profile Error:", e);
@@ -122,9 +118,6 @@ export function useVpnProfile() {
     }
   }
 
-  /**
-   * Requests connection to a specific server for an existing profile.
-   */
   const connectToServer = async (
     profileId: string,
     serverIp: string,

@@ -313,13 +313,16 @@ const {
 });
 
 // History State
-const MAX_HISTORY = 60;
+const MAX_HISTORY = 60; // Keep last 60 data points
 
+// Note: original code had strict DataPoint interface, simplifying for replacement/merge
 const history = ref<any[]>([]);
 
 // Computed for Primary vs Others
 const sortedServers = computed(() => {
+  // 1. Filter only Game Servers (UDP)
   const udpServers = detectedServers.value.filter((s) => s.is_game_server);
+  // 2. Sort by total traffic rate descending
   return udpServers.sort((a, b) => {
     const rateA = a.send_rate + a.recv_rate;
     const rateB = b.send_rate + b.recv_rate;
@@ -329,6 +332,7 @@ const sortedServers = computed(() => {
 
 const primaryServer = computed(() => {
   if (sortedServers.value.length === 0) return null;
+  // The top one is the primary
   return sortedServers.value[0];
 });
 
@@ -393,10 +397,11 @@ function formatBytes(bytes: number): string {
 }
 
 async function toggleMonitoring() {
-  history.value = [];
   if (isMonitoring.value) {
     await stopMonitoring();
+    history.value = [];
   } else {
+    history.value = [];
     await startMonitoring();
   }
 }

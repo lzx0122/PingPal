@@ -54,16 +54,6 @@ const trafficStatusText = computed(() => {
     : "Monitoring idle";
 });
 
-const primaryUdpEndpoint = computed(() => {
-  const list = trafficMonitor.detectedServers.value.filter(
-    (s) => s.is_game_server,
-  );
-  if (list.length === 0) return null;
-  return [...list].sort(
-    (a, b) => b.send_rate + b.recv_rate - (a.send_rate + a.recv_rate),
-  )[0];
-});
-
 function syncFromRoute() {
   const id = props.gameId;
   const g = GAMES.find((x) => x.id === id);
@@ -90,9 +80,7 @@ watch(
 
 async function onConnect() {
   if (!selectedServer.value) return;
-  await fetchGameRanges(game.value!.id);
-  const connected = await connect(selectedServer.value);
-  if (!connected) return;
+  await connect(selectedServer.value);
   await trafficMonitor.startMonitoring();
 }
 
@@ -123,7 +111,6 @@ function onNewRangeDetected(ip: string) {
       :traffic-status-type="trafficMonitor.activityType.value"
       :vpn-config="vpnConfigForUi"
       :game-ip-ranges="gameIpRanges"
-      :primary-server-data="primaryUdpEndpoint"
       @connect="onConnect"
       @disconnect="onDisconnect"
       @new-range-detected="onNewRangeDetected"

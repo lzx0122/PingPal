@@ -31,3 +31,5 @@ Tauri/docs
 docs/
 
 .github/
+
+Tauri/coverage/

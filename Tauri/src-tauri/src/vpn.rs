@@ -1,13 +1,23 @@
 use crate::privileges;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::Command;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_shell::ShellExt;
 
+struct TempConfigGuard(PathBuf);
+
+impl Drop for TempConfigGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
 // Tunnel interface name (fixed to avoid clashes with other VPN software)
 const INTERFACE_NAME: &str = "PingPalAdapter";
 
+#[tracing::instrument(level = "info", skip(app, config_content), fields(ipv4_address = %ipv4_address, config_len = config_content.len()))]
 #[tauri::command]
 pub async fn connect_vpn<R: Runtime>(
     app: AppHandle<R>,
@@ -55,10 +65,14 @@ pub async fn connect_vpn<R: Runtime>(
         .collect::<Vec<&str>>()
         .join("\n");
 
-    let mut file = File::create(&config_path).map_err(|e| format!("failed to create config: {}", e))?;
-    file.write_all(filtered_config.as_bytes())
-        .map_err(|e| format!("failed to write config: {}", e))?;
+    {
+        let mut file =
+            File::create(&config_path).map_err(|e| format!("failed to create config: {}", e))?;
+        file.write_all(filtered_config.as_bytes())
+            .map_err(|e| format!("failed to write config: {}", e))?;
+    }
 
+    let _config_guard = TempConfigGuard(config_path.clone());
     tracing::debug!(path = ?config_path, "wrote temp WireGuard config");
 
     // Step 2: Windows service runs wg-engine as SYSTEM
@@ -415,6 +429,7 @@ pub fn add_route_to_vpn(ip: &str) -> Result<String, String> {
     Ok(format!("Added {} to VPN routes", ip))
 }
 
+#[tracing::instrument(level = "info")]
 #[tauri::command]
 pub fn disconnect_vpn() -> Result<String, String> {
     tracing::debug!("disconnecting VPN");

@@ -10,13 +10,16 @@ use tokio::sync::Mutex as AsyncMonitorMutex;
 const MONITORING_INTERVAL_SECS: u64 = 2;
 const UDP_CACHE_TIMEOUT_SECS: u64 = 30;
 const GEOIP_API_URL: &str = "http://ip-api.com/json/";
+const SNIFFER_RECV_TIMEOUT_MS: u32 = 500;
+
 use windows::Win32::NetworkManagement::IpHelper::{
     GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP_STATE_ESTAB, MIB_TCPTABLE_OWNER_PID,
     MIB_UDPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
 };
 use windows::Win32::Networking::WinSock::{
-    bind, closesocket, ioctlsocket, recv, socket, WSAStartup, AF_INET, IPPROTO_IP, SEND_RECV_FLAGS,
-    SIO_RCVALL, SOCKADDR, SOCKADDR_IN, SOCK_RAW, WSADATA,
+    bind, closesocket, ioctlsocket, recv, setsockopt, socket, WSAStartup, AF_INET, IPPROTO_IP,
+    SEND_RECV_FLAGS, SIO_RCVALL, SO_RCVTIMEO, SOCKADDR, SOCKADDR_IN, SOL_SOCKET, SOCK_RAW,
+    WSADATA,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,8 +146,21 @@ fn get_local_ip() -> Option<Ipv4Addr> {
     None
 }
 
+fn is_safe_process_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 260
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | ' '))
+}
+
 fn get_all_process_ids(process_name: &str) -> Vec<u32> {
     use std::process::Command;
+
+    if !is_safe_process_name(process_name) {
+        tracing::warn!(process = %process_name, "rejected unsafe process name");
+        return Vec::new();
+    }
 
     let output = match Command::new("tasklist")
         .args([
@@ -403,6 +419,23 @@ fn start_sniffer(
             return;
         }
 
+        let timeout_ms = SNIFFER_RECV_TIMEOUT_MS;
+        if setsockopt(
+            sock,
+            SOL_SOCKET as i32,
+            SO_RCVTIMEO as i32,
+            Some(std::slice::from_raw_parts(
+                &timeout_ms as *const u32 as *const u8,
+                std::mem::size_of::<u32>(),
+            )),
+        ) != 0
+        {
+            tracing::warn!(
+                code = windows::Win32::Networking::WinSock::WSAGetLastError().0,
+                "SO_RCVTIMEO failed; cancel signal may be delayed"
+            );
+        }
+
         tracing::debug!("sniffer listening");
 
         let mut buffer = [0u8; 65536];
@@ -453,7 +486,7 @@ fn start_sniffer(
                             let mut cache = udp_cache.lock().unwrap();
                             let entry = cache.entry(key).or_default();
                             entry.last_seen = Instant::now();
-                            entry.total_recv += len as u64; // Count full packet size
+                            entry.total_recv += payload_len as u64;
                         }
                     }
                 }
@@ -465,6 +498,7 @@ fn start_sniffer(
 }
 
 
+#[tracing::instrument(level = "debug", skip(cancel_rx, state), fields(process_name = %process_name))]
 async fn monitoring_loop(
     process_name: String,
     mut cancel_rx: tokio::sync::watch::Receiver<bool>,
@@ -572,31 +606,34 @@ async fn monitoring_loop(
                         }
                     }
 
-                    {
+                    let geo_cache = {
                         let mut st = state.lock().await;
                         st.detected_servers = detected.clone();
-                    }
-
-                    let geo_cache = state.lock().await.geo_cache.clone();
+                        st.geo_cache.clone()
+                    };
 
                     for server in detected {
-                        if !is_public_ip(&server.ip) { continue; }
-                        let ip = server.ip.clone();
+                        if !is_public_ip(&server.ip) {
+                            continue;
+                        }
 
-                        let should_lookup_geo = {
-                            let cache = geo_cache.lock().unwrap();
-                            !cache.contains_key(&server.ip)
+                        let should_spawn = {
+                            let mut cache = geo_cache.lock().unwrap();
+                            if cache.contains_key(&server.ip) {
+                                false
+                            } else {
+                                cache.insert(server.ip.clone(), None);
+                                true
+                            }
                         };
-                        if should_lookup_geo {
-                           let cache_clone = geo_cache.clone();
-                           let ip_clone = ip.clone();
-                           tokio::spawn(async move {
-                               if let Some(loc) = resolve_ip_location(&ip_clone).await {
-                                   cache_clone.lock().unwrap().insert(ip_clone, Some(loc));
-                               } else {
-                                   cache_clone.lock().unwrap().insert(ip_clone, None);
-                               }
-                           });
+
+                        if should_spawn {
+                            let cache_clone = geo_cache.clone();
+                            let ip_clone = server.ip.clone();
+                            tokio::spawn(async move {
+                                let loc = resolve_ip_location(&ip_clone).await;
+                                cache_clone.lock().unwrap().insert(ip_clone, loc);
+                            });
                         }
                     }
                 } else {
@@ -614,6 +651,7 @@ async fn monitoring_loop(
     tracing::debug!("monitoring loop stopped");
 }
 
+#[tracing::instrument(level = "info", skip(state), fields(process_name = %process_name))]
 #[tauri::command]
 pub async fn start_monitoring(
     process_name: String,
@@ -651,6 +689,7 @@ pub async fn start_monitoring(
     Ok("Monitoring started successfully".to_string())
 }
 
+#[tracing::instrument(level = "debug", skip(state))]
 #[tauri::command]
 pub async fn get_detected_servers(
     state: tauri::State<'_, Arc<AsyncMonitorMutex<MonitorState>>>,
@@ -659,6 +698,7 @@ pub async fn get_detected_servers(
     Ok(monitor_state.detected_servers.clone())
 }
 
+#[tracing::instrument(level = "info", skip(state))]
 #[tauri::command]
 pub async fn stop_monitoring(
     state: tauri::State<'_, Arc<AsyncMonitorMutex<MonitorState>>>,
@@ -680,6 +720,7 @@ pub async fn stop_monitoring(
     Ok("Monitoring stopped successfully".to_string())
 }
 
+#[tracing::instrument(level = "debug", skip(state))]
 #[tauri::command]
 pub async fn get_all_session_ips(
     state: tauri::State<'_, Arc<AsyncMonitorMutex<MonitorState>>>,
@@ -697,6 +738,7 @@ pub async fn get_all_session_ips(
     Ok(ips.into_iter().collect())
 }
 
+#[tracing::instrument(level = "info", skip(app), fields(ip = %ip))]
 #[tauri::command]
 pub async fn add_detected_ip_to_routes(
     app: tauri::AppHandle,

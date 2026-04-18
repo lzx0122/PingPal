@@ -1,8 +1,16 @@
 <script setup lang="ts">
+import { defineAsyncComponent } from "vue";
 import { RouterView } from "vue-router";
+
+const isDev = import.meta.env.DEV;
+
+const DevHUD = isDev
+  ? defineAsyncComponent(() => import("./components/ui/DevHUD.vue"))
+  : null;
 </script>
 
 <template>
+  <component v-if="isDev && DevHUD" :is="DevHUD" />
   <RouterView />
 </template>
 

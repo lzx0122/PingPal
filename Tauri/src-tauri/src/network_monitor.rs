@@ -11,7 +11,8 @@ const MONITORING_INTERVAL_SECS: u64 = 2;
 const UDP_CACHE_TIMEOUT_SECS: u64 = 30;
 const GEOIP_API_URL: &str = "http://ip-api.com/json/";
 use windows::Win32::NetworkManagement::IpHelper::{
-    GetExtendedUdpTable, MIB_UDPTABLE_OWNER_PID, UDP_TABLE_OWNER_PID,
+    GetExtendedTcpTable, GetExtendedUdpTable, MIB_TCP_STATE_ESTAB, MIB_TCPTABLE_OWNER_PID,
+    MIB_UDPTABLE_OWNER_PID, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
 };
 use windows::Win32::Networking::WinSock::{
     bind, closesocket, ioctlsocket, recv, socket, WSAStartup, AF_INET, IPPROTO_IP, SEND_RECV_FLAGS,
@@ -47,15 +48,30 @@ impl Default for TrafficStats {
     }
 }
 
-#[derive(Default)]
 pub struct MonitorState {
     is_monitoring: bool,
     process_name: Option<String>,
     detected_servers: Vec<DetectedServer>,
+    tcp_session_ips: HashMap<String, Instant>,
     cancel_token: Option<tokio::sync::watch::Sender<bool>>,
     interesting_ports: Arc<Mutex<HashSet<u16>>>,
     udp_detected_cache: Arc<Mutex<HashMap<String, TrafficStats>>>,
     geo_cache: Arc<Mutex<HashMap<String, Option<String>>>>,
+}
+
+impl Default for MonitorState {
+    fn default() -> Self {
+        Self {
+            is_monitoring: false,
+            process_name: None,
+            detected_servers: Vec::new(),
+            tcp_session_ips: HashMap::new(),
+            cancel_token: None,
+            interesting_ports: Arc::new(Mutex::new(HashSet::new())),
+            udp_detected_cache: Arc::new(Mutex::new(HashMap::new())),
+            geo_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
 }
 
 impl MonitorState {
@@ -248,6 +264,52 @@ fn get_udp_ports(pid: u32) -> HashSet<u16> {
         }
     }
     ports
+}
+
+const TCP_IP_TIMEOUT_SECS: u64 = 120;
+const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
+
+fn get_tcp_remote_ips(pid: u32) -> HashSet<String> {
+    let mut ips = HashSet::new();
+
+    unsafe {
+        let mut size: u32 = 0;
+        let mut buffer: Vec<u8> = Vec::new();
+
+        loop {
+            let result = GetExtendedTcpTable(
+                if buffer.is_empty() { None } else { Some(buffer.as_mut_ptr() as *mut _) },
+                &mut size,
+                false,
+                AF_INET.0 as u32,
+                TCP_TABLE_OWNER_PID_ALL,
+                0,
+            );
+
+            if result == ERROR_INSUFFICIENT_BUFFER || buffer.is_empty() {
+                if size == 0 { return ips; }
+                buffer.resize(size as usize, 0);
+                continue;
+            }
+
+            if result != 0 { return ips; }
+
+            let table = &*(buffer.as_ptr() as *const MIB_TCPTABLE_OWNER_PID);
+            let entries =
+                std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
+
+            for entry in entries {
+                if entry.dwOwningPid == pid && entry.dwState == MIB_TCP_STATE_ESTAB.0 as u32 {
+                    let remote_ip = ip_to_string(entry.dwRemoteAddr);
+                    if is_public_ip(&remote_ip) {
+                        ips.insert(remote_ip);
+                    }
+                }
+            }
+            break;
+        }
+    }
+    ips
 }
 
 #[derive(Deserialize)]
@@ -447,9 +509,17 @@ async fn monitoring_loop(
 
                 if let Some(pid) = find_game_process_pid(&process_name) {
                     let udp_ports = get_udp_ports(pid);
+                    let tcp_ips = get_tcp_remote_ips(pid);
 
                     let (interesting_ports_arc, udp_detected_cache_arc, geo_cache_arc) = {
-                        let guard = state.lock().await;
+                        let mut guard = state.lock().await;
+                        let now = Instant::now();
+                        for ip in &tcp_ips {
+                            guard.tcp_session_ips.insert(ip.clone(), now);
+                        }
+                        guard.tcp_session_ips.retain(|_, last_seen| {
+                            last_seen.elapsed() < Duration::from_secs(TCP_IP_TIMEOUT_SECS)
+                        });
                         (
                             guard.interesting_ports.clone(),
                             guard.udp_detected_cache.clone(),
@@ -565,6 +635,7 @@ pub async fn start_monitoring(
     monitor_state.process_name = Some(process_name.clone());
     monitor_state.cancel_token = Some(cancel_tx);
     monitor_state.detected_servers.clear();
+    monitor_state.tcp_session_ips.clear();
     monitor_state.interesting_ports = Arc::new(Mutex::new(HashSet::new()));
     monitor_state.udp_detected_cache = Arc::new(Mutex::new(HashMap::new()));
     monitor_state.geo_cache = Arc::new(Mutex::new(HashMap::new()));
@@ -607,6 +678,23 @@ pub async fn stop_monitoring(
     monitor_state.cancel_token = None;
 
     Ok("Monitoring stopped successfully".to_string())
+}
+
+#[tauri::command]
+pub async fn get_all_session_ips(
+    state: tauri::State<'_, Arc<AsyncMonitorMutex<MonitorState>>>,
+) -> Result<Vec<String>, String> {
+    let monitor_state = state.lock().await;
+    let mut ips: HashSet<String> = monitor_state
+        .detected_servers
+        .iter()
+        .filter(|s| s.is_game_server)
+        .map(|s| s.ip.clone())
+        .collect();
+    for ip in monitor_state.tcp_session_ips.keys() {
+        ips.insert(ip.clone());
+    }
+    Ok(ips.into_iter().collect())
 }
 
 #[tauri::command]

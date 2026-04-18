@@ -7,6 +7,7 @@ export const TAURI_CMD = {
   startMonitoring: "start_monitoring",
   stopMonitoring: "stop_monitoring",
   getDetectedServers: "get_detected_servers",
+  getAllSessionIps: "get_all_session_ips",
   addDetectedIpToRoutes: "add_detected_ip_to_routes",
 } as const;
 
@@ -48,6 +49,10 @@ export function stopMonitoring(): Promise<string> {
 
 export function getDetectedServers(): Promise<DetectedServerPayload[]> {
   return invoke<DetectedServerPayload[]>(TAURI_CMD.getDetectedServers);
+}
+
+export function getAllSessionIps(): Promise<string[]> {
+  return invoke<string[]>(TAURI_CMD.getAllSessionIps);
 }
 
 export function addDetectedIpToRoutes(ip: string): Promise<string> {

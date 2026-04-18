@@ -2,7 +2,7 @@ import { onUnmounted, ref } from "vue";
 import { apiFetch } from "@/lib/apiClient";
 import { useTrafficMonitorStore } from "@/stores/trafficMonitorStore";
 import {
-  addDetectedIpToRoutes,
+  getAllSessionIps,
   getDetectedServers,
   startMonitoring as tauriStartMonitoring,
   stopMonitoring as tauriStopMonitoring,
@@ -46,21 +46,10 @@ function parseRange(value: string): { ip: string; prefix: number | null } | null
   return { ip, prefix };
 }
 
-function getRangeKeys(value: string): { routeKey: string; postRange: string } | null {
+function toPostRange(value: string): string | null {
   const parsed = parseRange(value);
   if (!parsed) return null;
-
-  if (parsed.prefix === null) {
-    return {
-      routeKey: parsed.ip,
-      postRange: `${parsed.ip}/32`,
-    };
-  }
-
-  return {
-    routeKey: parsed.prefix === 32 ? parsed.ip : `${parsed.ip}/${parsed.prefix}`,
-    postRange: `${parsed.ip}/${parsed.prefix}`,
-  };
+  return parsed.prefix === null ? `${parsed.ip}/32` : `${parsed.ip}/${parsed.prefix}`;
 }
 
 export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
@@ -75,8 +64,8 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
   const activityType = ref<MonitorActivityType>("info");
   const addingRoute = ref<string | null>(null);
 
-  const autoRoutedIps = ref(new Set<string>());
-  const autoRoutingIps = ref(new Set<string>());
+  // 統一以 postRange（含前綴，如 "1.2.3.4/32"）作為所有去重 key
+  const autoRoutedRanges = ref(new Set<string>());
   const autoPostedRanges = ref(new Set<string>());
   const autoPostingRanges = ref(new Set<string>());
 
@@ -115,7 +104,7 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
     isMonitoring.value = false;
     clearPollingTimer();
     detectedServers.value = [];
-    autoRoutingIps.value.clear();
+    autoRoutedRanges.value.clear();
     autoPostingRanges.value.clear();
   }
 
@@ -129,22 +118,17 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
     await fetchServers();
   }
 
-  function getKnownRanges() {
-    return options.getKnownRanges?.() ?? new Set<string>();
-  }
-
   function initializeAutoCaches() {
-    const knownRanges = getKnownRanges();
-    autoRoutedIps.value = new Set<string>();
+    const knownRanges = options.getKnownRanges?.() ?? new Set<string>();
+    autoRoutedRanges.value = new Set<string>();
     autoPostedRanges.value = new Set<string>();
-    autoRoutingIps.value.clear();
     autoPostingRanges.value.clear();
 
     knownRanges.forEach((value) => {
-      const keys = getRangeKeys(value);
-      if (!keys) return;
-      autoPostedRanges.value.add(keys.postRange);
-      autoRoutedIps.value.add(keys.routeKey);
+      const postRange = toPostRange(value);
+      if (!postRange) return;
+      autoPostedRanges.value.add(postRange);
+      autoRoutedRanges.value.add(postRange);
     });
   }
 
@@ -152,60 +136,55 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
     const gameId = options.getGameId?.();
     if (!gameId) return;
 
-    const keys = getRangeKeys(ip);
-    if (!keys) return;
+    const postRange = toPostRange(ip);
+    if (!postRange) return;
+    if (autoPostedRanges.value.has(postRange)) return;
+    if (autoPostingRanges.value.has(postRange)) return;
 
-    const ipRange = keys.postRange;
-    if (autoPostedRanges.value.has(ipRange)) return;
-    if (autoPostingRanges.value.has(ipRange)) return;
-
-    autoPostingRanges.value.add(ipRange);
+    autoPostingRanges.value.add(postRange);
     void apiFetch(`/api/vpn/games/${gameId}/ranges/learn`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ipRange }),
+      body: JSON.stringify({ ipRange: postRange }),
     })
       .then(async (response) => {
         if (!response.ok) {
           const text = await response.text();
           throw new Error(text || `HTTP ${response.status}`);
         }
-        setActivity(`Learned: ${ipRange}`, "success");
-        console.log(`[TrafficMonitor] Learned range persisted: ${ipRange}`);
-        autoPostedRanges.value.add(ipRange);
+        autoPostedRanges.value.add(postRange);
+        setActivity(`Learned: ${postRange}`, "success");
+        console.log(`[TrafficMonitor] Learned range persisted: ${postRange}`);
       })
       .catch((error) => {
-        console.warn(`Auto range post failed for ${ipRange}:`, error);
+        console.warn(`Auto range post failed for ${postRange}:`, error);
       })
       .finally(() => {
-        autoPostingRanges.value.delete(ipRange);
+        autoPostingRanges.value.delete(postRange);
       });
   }
 
   function queueAutoRoute(ip: string) {
     if (!ip) return;
-    if (autoRoutedIps.value.has(ip)) return;
-    if (autoRoutingIps.value.has(ip)) return;
+    const postRange = toPostRange(ip);
+    if (!postRange) return;
+    if (autoRoutedRanges.value.has(postRange)) return;
+    autoRoutedRanges.value.add(postRange);
+    options.onNewRangeDetected?.(ip);
+    queueAutoPostRange(ip);
+  }
 
-    autoRoutingIps.value.add(ip);
-    void addDetectedIpToRoutes(ip)
-      .then(() => {
-        autoRoutedIps.value.add(ip);
-        options.onNewRangeDetected?.(ip);
-        // When gameId exists, successful post flow will emit a "Learned: ..." activity.
-        // Only show "Auto routed" when posting is not applicable.
-        const hasGameId = Boolean(options.getGameId?.());
-        queueAutoPostRange(ip);
-        if (!hasGameId) {
-          setActivity(`Auto routed: ${ip}`, "success");
-        }
-      })
-      .catch((error) => {
-        console.warn(`Auto route failed for ${ip}:`, error);
-      })
-      .finally(() => {
-        autoRoutingIps.value.delete(ip);
-      });
+  async function learnSessionIpsFromSidecar() {
+    if (!isMonitoring.value || !options.getGameId?.()) return;
+    let ips: string[];
+    try {
+      ips = await getAllSessionIps();
+    } catch {
+      return;
+    }
+    for (const ip of ips) {
+      queueAutoPostRange(ip);
+    }
   }
 
   async function fetchServers() {
@@ -229,6 +208,13 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
       }
     } catch (error) {
       console.error("Failed to fetch servers:", error);
+    }
+
+    // 獨立 try/catch，確保 TCP learn 不被上方錯誤影響
+    try {
+      await learnSessionIpsFromSidecar();
+    } catch (error) {
+      console.error("Failed to learn session IPs:", error);
     }
   }
 
@@ -316,14 +302,44 @@ export function useGameTrafficMonitor(options: UseGameTrafficMonitorOptions) {
 
   async function addToRoutes(ip: string) {
     addingRoute.value = ip;
-    try {
-      await addDetectedIpToRoutes(ip);
-      autoRoutedIps.value.add(ip);
+    const postRange = toPostRange(ip);
+    if (!postRange) {
+      addingRoute.value = null;
+      return;
+    }
+
+    const gameId = options.getGameId?.();
+    if (!gameId) {
+      autoRoutedRanges.value.add(postRange);
       options.onNewRangeDetected?.(ip);
-      queueAutoPostRange(ip);
-      setActivity(`Route added: ${ip}`, "success");
+      setActivity(`Learned: ${postRange}`, "success");
+      addingRoute.value = null;
+      return;
+    }
+
+    if (autoPostedRanges.value.has(postRange)) {
+      setActivity(`Already learned: ${postRange}`, "success");
+      addingRoute.value = null;
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/vpn/games/${gameId}/ranges/learn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ipRange: postRange }),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+      autoPostedRanges.value.add(postRange);
+      autoRoutedRanges.value.add(postRange);
+      options.onNewRangeDetected?.(ip);
+      setActivity(`Learned: ${postRange}`, "success");
     } catch (error) {
-      console.warn(`Manual route add failed for ${ip}:`, error);
+      console.warn(`Manual learn failed for ${postRange}:`, error);
+      setActivity(`Failed to learn: ${postRange}`, "info");
     } finally {
       addingRoute.value = null;
     }

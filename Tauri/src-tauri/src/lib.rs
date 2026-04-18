@@ -46,6 +46,7 @@ pub fn run() {
             vpn::disconnect_vpn,
             network_monitor::start_monitoring,
             network_monitor::get_detected_servers,
+            network_monitor::get_all_session_ips,
             network_monitor::stop_monitoring,
             network_monitor::add_detected_ip_to_routes,
         ])

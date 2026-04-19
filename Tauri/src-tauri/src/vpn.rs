@@ -1,4 +1,5 @@
 use crate::privileges;
+use std::sync::Mutex;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -7,6 +8,7 @@ use tauri::{AppHandle, Runtime};
 use tauri_plugin_shell::ShellExt;
 
 struct TempConfigGuard(PathBuf);
+static ACTIVE_ROUTES: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 
 impl Drop for TempConfigGuard {
     fn drop(&mut self) {
@@ -24,6 +26,7 @@ pub async fn connect_vpn<R: Runtime>(
     config_content: String,
     ipv4_address: String,
 ) -> Result<String, String> {
+    clean_vpn_routes();
     // Step 0: require elevated session (admin)
     let admin_check = Command::new("net")
         .args(["session"])
@@ -238,49 +241,124 @@ pub async fn connect_vpn<R: Runtime>(
         }
 
         let if_idx = interface_idx.ok_or("could not resolve VPN interface index")?;
-
-        for ip_cidr in ips {
-            let parts: Vec<&str> = ip_cidr.split('/').collect();
-            if parts.len() != 2 {
-                tracing::warn!(%ip_cidr, "skip invalid CIDR");
-                continue;
-            }
-
-            let network = parts[0];
-            let prefix_len: u32 = match parts[1].parse() {
-                Ok(p) => p,
-                Err(_) => {
-                    tracing::warn!(prefix = %parts[1], "invalid prefix length");
-                    continue;
+        
+        if ips.len() == 1 && ips[0] == "0.0.0.0/0" {
+            
+            let endpoint_ip = config_content
+                .lines()
+                .find(|l| l.trim().starts_with("Endpoint"))
+                .and_then(|l| l.split('=').nth(1))
+                .and_then(|s| s.trim().split(':').next())
+                .map(|s| s.trim().to_string());
+            let gw_output = Command::new("route")
+                .args(["print", "0.0.0.0"])
+                .output();
+          
+            let current_gateway: Option<String> = gw_output.ok().and_then(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .find(|l| l.trim().starts_with("0.0.0.0") && l.contains("0.0.0.0"))
+                    .and_then(|l| l.split_whitespace().nth(2))
+                    .map(|s| s.to_string())
+            });
+            if let (Some(ep_ip), Some(gateway)) = (endpoint_ip, current_gateway) {
+                let _ = Command::new("route")
+                    .args(["add", &ep_ip, "mask", "255.255.255.255", &gateway, "METRIC", "1"])
+                    .output();
+                
+                if let Ok(mut routes) = ACTIVE_ROUTES.lock() {
+                    routes.push((ep_ip.clone(), "255.255.255.255".to_string()));
                 }
+            }
+            
+            let parts: Vec<&str> = ipv4_address.split('.').collect();
+            let vpn_peer = if parts.len() == 4 {
+                format!("{}.{}.{}.1", parts[0], parts[1], parts[2])
+            } else {
+                "10.0.0.1".to_string()
             };
 
-            let netmask = prefix_to_netmask(prefix_len);
-
-            tracing::debug!(%network, %netmask, "route add");
-
-            let route_output = Command::new("route")
-                .args([
-                    "add",
-                    network,
-                    "mask",
-                    &netmask,
-                    "0.0.0.0",
-                    "IF",
-                    &if_idx.to_string(),
-                    "METRIC",
-                    "1",
-                ])
-                .output()
-                .map_err(|e| format!("route add failed for {}: {}", ip_cidr, e))?;
-
-            if !route_output.status.success() {
-                let err_msg = String::from_utf8_lossy(&route_output.stderr);
-                tracing::warn!(%ip_cidr, stderr = %err_msg, "route add failed (may already exist)");
+            let subnet_parts: Vec<&str> = ipv4_address.split('.').collect();
+            let vpn_subnet = if subnet_parts.len() == 4 {
+                format!("{}.{}.{}.0", subnet_parts[0], subnet_parts[1], subnet_parts[2])
             } else {
-                tracing::debug!(%ip_cidr, "route added");
+                "10.0.0.0".to_string()
+            };
+            let _ = Command::new("route")
+                .args(["add", &vpn_subnet, "mask", "255.255.255.0", &ipv4_address])
+                .output();
+            if let Ok(mut routes) = ACTIVE_ROUTES.lock() {
+                routes.push((vpn_subnet.clone(), "255.255.255.0".to_string()));
+            }
+
+            for &(net, mask) in &[("0.0.0.0", "128.0.0.0"), ("128.0.0.0", "128.0.0.0")] {
+                let _ = Command::new("route")
+                    .args([
+                        "add",
+                        net,
+                        "mask",
+                        mask,
+                        &vpn_peer,
+                        "IF",
+                        &if_idx.to_string(),
+                        "METRIC",
+                        "1",
+                    ])
+                    .output();
+                
+                if let Ok(mut routes) = ACTIVE_ROUTES.lock() {
+                    routes.push((net.to_string(), mask.to_string()));
+                }
+            }
+        } else {
+
+            for ip_cidr in ips {
+                let parts: Vec<&str> = ip_cidr.split('/').collect();
+                if parts.len() != 2 {
+                    tracing::warn!(%ip_cidr, "skip invalid CIDR");
+                    continue;
+                }
+    
+                let network = parts[0];
+                let prefix_len: u32 = match parts[1].parse() {
+                    Ok(p) => p,
+                    Err(_) => {
+                        tracing::warn!(prefix = %parts[1], "invalid prefix length");
+                        continue;
+                    }
+                };
+    
+                let netmask = prefix_to_netmask(prefix_len);
+    
+                tracing::debug!(%network, %netmask, "route add");
+    
+                let route_output = Command::new("route")
+                    .args([
+                        "add",
+                        network,
+                        "mask",
+                        &netmask,
+                        "0.0.0.0",
+                        "IF",
+                        &if_idx.to_string(),
+                        "METRIC",
+                        "1",
+                    ])
+                    .output()
+                    .map_err(|e| format!("route add failed for {}: {}", ip_cidr, e))?;
+    
+                if !route_output.status.success() {
+                    let err_msg = String::from_utf8_lossy(&route_output.stderr);
+                    tracing::warn!(%ip_cidr, stderr = %err_msg, "route add failed (may already exist)");
+                } else {
+                    tracing::debug!(%ip_cidr, "route added");
+                    if let Ok(mut routes) = ACTIVE_ROUTES.lock() {
+                        routes.push((network.to_string(), netmask.clone()));
+                    }
+                }
             }
         }
+       
     } else {
         tracing::warn!("no AllowedIPs in config; split tunnel routes skipped");
     }
@@ -433,11 +511,27 @@ pub fn add_route_to_vpn(ip: &str) -> Result<String, String> {
 #[tauri::command]
 pub fn disconnect_vpn() -> Result<String, String> {
     tracing::debug!("disconnecting VPN");
-
     crate::service_manager::stop_service()?;
-
+    clean_vpn_routes();
     tracing::info!("VPN disconnected");
     Ok("VPN disconnected.".to_string())
+}
+
+
+fn clean_vpn_routes() {
+    let routes = match ACTIVE_ROUTES.lock() {
+        Ok(r) => r.clone(),
+        Err(_) => return,
+    };
+    for (network, netmask) in &routes {
+        let _ = Command::new("route")
+            .args(["delete", network, "mask", netmask])
+            .output();
+        tracing::debug!(%network, "route deleted");
+    }
+    if let Ok(mut r) = ACTIVE_ROUTES.lock() {
+        r.clear();
+    }
 }
 
 fn prefix_to_netmask(prefix: u32) -> String {

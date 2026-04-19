@@ -44,13 +44,15 @@ export function useWireGuardSession() {
     const useFullTunnelTest = FULL_TUNNEL_TEST_GAMES.has(gameId);
     const useUdpDynamicOnly = UDP_DYNAMIC_ONLY_GAMES.has(gameId);
     const effectiveRanges = [...new Set(gameIpRanges.value)];
-    const routeIps = useFullTunnelTest
-      ? "0.0.0.0/0"
-      : useUdpDynamicOnly
-        ? "10.0.0.0/24"
-        : effectiveRanges.join(", ") || "10.0.0.0/24";
-    const dnsLine = useFullTunnelTest ? "DNS = 1.1.1.1\n" : "";
+    const routeIps = "0.0.0.0/0";
+    const dnsLine = "DNS = 1.1.1.1\n";
 
+    //     const routeIps = useFullTunnelTest
+    //   ? "0.0.0.0/0"
+    //   : useUdpDynamicOnly
+    //     ? "10.0.0.0/24"
+    //     : effectiveRanges.join(", ") || "10.0.0.0/24";
+    // const dnsLine = useFullTunnelTest ? "DNS = 1.1.1.1\n" : "";
     return `
 [Interface]
 PrivateKey = ${cfg.privateKey}
@@ -59,7 +61,6 @@ ${dnsLine}MTU = 1280
 
 [Peer]
 PublicKey = ${serverConfig.server_public_key}
-PresharedKey = JbLLJPvjfXhykHg8mDrNdonHhNTlAYZNh9v3u8bbNzI=
 AllowedIPs = ${routeIps}
 Endpoint = ${serverConfig.server_endpoint}
 PersistentKeepalive = 25

@@ -47,12 +47,31 @@ function getPublicIp(): string {
   return runCommand("curl -s ifconfig.me");
 }
 
+function ensureWireGuardFirewallRules() {
+  const tryCheck = (cmd: string) => {
+    try {
+      execSync(cmd, { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!tryCheck("iptables -C FORWARD -i wg0 -j ACCEPT")) {
+    runCommand("iptables -A FORWARD -i wg0 -j ACCEPT");
+  }
+  if (
+    !tryCheck("iptables -t nat -C POSTROUTING -s 10.0.0.0/24 -j MASQUERADE")
+  ) {
+    runCommand("iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -j MASQUERADE");
+  }
+}
+
 function countryCodeToFlag(countryCode: string): string {
   if (!countryCode || countryCode.length !== 2) return "🌍";
   const codePoints = countryCode
     .toUpperCase()
-    .split('')
-    .map(char => 127397 + char.charCodeAt(0));
+    .split("")
+    .map((char) => 127397 + char.charCodeAt(0));
   return String.fromCodePoint(...codePoints);
 }
 
@@ -70,15 +89,26 @@ type ActivePeer = {
 };
 
 async function getLocationFromIp(ip: string): Promise<LocationData> {
-  if (process.env.LOCATION_LAT && process.env.LOCATION_LON && process.env.COUNTRY_CODE) {
-    console.log("Using manually configured location from environment variables");
+  if (
+    process.env.LOCATION_LAT &&
+    process.env.LOCATION_LON &&
+    process.env.COUNTRY_CODE
+  ) {
+    console.log(
+      "Using manually configured location from environment variables",
+    );
     return {
-      coordinates: [parseFloat(process.env.LOCATION_LON), parseFloat(process.env.LOCATION_LAT)],
+      coordinates: [
+        parseFloat(process.env.LOCATION_LON),
+        parseFloat(process.env.LOCATION_LAT),
+      ],
       countryCode: process.env.COUNTRY_CODE,
       countryName: process.env.COUNTRY_NAME || "Unknown",
     };
   }
-  console.warn("No location environment variables set, using default location (0,0)");
+  console.warn(
+    "No location environment variables set, using default location (0,0)",
+  );
   return {
     coordinates: [0, 0],
     countryCode: "UN",
@@ -112,12 +142,14 @@ AllowedIPs = ${p.allowed_ip}/32
     runCommand(`wg-quick strip ${WG_INTERFACE} > /tmp/wg0.strip`);
     runCommand(`wg syncconf ${WG_INTERFACE} /tmp/wg0.strip`);
     console.log("WireGuard config reloaded.");
+    ensureWireGuardFirewallRules();
   } catch (e) {
     console.log("Syncconf failed, trying restart...", e);
     try {
       runCommand(`wg-quick down ${WG_INTERFACE}`);
     } catch {}
     runCommand(`wg-quick up ${WG_INTERFACE}`);
+    ensureWireGuardFirewallRules();
   }
 }
 
@@ -127,7 +159,9 @@ function normalizeAllowedIp(assignedIp: string): string {
   return raw.includes("/") ? raw.split("/")[0] : raw;
 }
 
-async function fetchActivePeersForServer(publicIp: string): Promise<ActivePeer[]> {
+async function fetchActivePeersForServer(
+  publicIp: string,
+): Promise<ActivePeer[]> {
   const { data, error } = await supabase
     .from("vpn_server_allocations")
     .select(
@@ -193,7 +227,7 @@ async function main() {
   if (!server) {
     console.log("Server not found in DB. Registering...");
     const tags = process.env.VPN_SERVER_TAGS
-      ? process.env.VPN_SERVER_TAGS.split(',').map(t => t.trim())
+      ? process.env.VPN_SERVER_TAGS.split(",").map((t) => t.trim())
       : [];
     const locationData = await getLocationFromIp(publicIp);
     const flag = countryCodeToFlag(locationData.countryCode);

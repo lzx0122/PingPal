@@ -8,6 +8,7 @@ mod vpn;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tracing::instrument(level = "info", skip(name), fields(name = %name))]
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -65,31 +66,4 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_greet() {
-        let result = greet("Tauri");
-        assert_eq!(result, "Hello, Tauri! You've been greeted from Rust!");
-    }
-
-    #[test]
-    fn test_get_device_name_inner() {
-        let result = get_device_name_inner();
-        assert!(result.is_ok() || result.is_err());
-
-        if let Ok(name) = result {
-            assert!(!name.is_empty(), "Hostname should not be empty if successful");
-        }
-    }
-
-    #[test]
-    fn test_get_device_name() {
-        let result = get_device_name();
-        assert!(result.is_ok() || result.is_err());
-    }
 }

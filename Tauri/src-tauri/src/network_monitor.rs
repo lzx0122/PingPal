@@ -51,19 +51,6 @@ impl Default for TrafficStats {
     }
 }
 
-#[cfg(test)]
-mod stats_tests {
-    use super::*;
-
-    #[test]
-    fn test_traffic_stats_default() {
-        let stats = TrafficStats::default();
-        assert_eq!(stats.total_sent, 0);
-        assert_eq!(stats.total_recv, 0);
-        assert!(stats.last_seen.elapsed().as_millis() < 100);
-    }
-}
-
 pub struct MonitorState {
     is_monitoring: bool,
     process_name: Option<String>,

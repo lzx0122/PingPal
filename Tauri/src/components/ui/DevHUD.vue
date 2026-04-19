@@ -32,6 +32,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
+// 只在開發模式 (Vite DEV) 下執行與渲染
 const isVisible = import.meta.env.DEV;
 
 const fps = ref(0);

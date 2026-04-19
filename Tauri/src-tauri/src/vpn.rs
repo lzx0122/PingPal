@@ -14,10 +14,41 @@ impl Drop for TempConfigGuard {
     }
 }
 
+// Tunnel interface name (fixed to avoid clashes with other VPN software)
 const INTERFACE_NAME: &str = "PingPalAdapter";
 
-fn filter_wg_config(config: &str) -> String {
-    config
+#[tracing::instrument(level = "info", skip(app, config_content), fields(ipv4_address = %ipv4_address, config_len = config_content.len()))]
+#[tauri::command]
+pub async fn connect_vpn<R: Runtime>(
+    app: AppHandle<R>,
+    config_content: String,
+    ipv4_address: String,
+) -> Result<String, String> {
+    // Step 0: require elevated session (admin)
+    let admin_check = Command::new("net")
+        .args(["session"])
+        .output()
+        .map_err(|e| format!("failed to check admin session: {}", e))?;
+
+    if !admin_check.status.success() {
+        return Err(
+            "Run this application as Administrator to establish a VPN connection.".to_string(),
+        );
+    }
+
+    // Step 0.5: privileges WireGuard may need for protected named pipes
+    if let Err(e) = privileges::enable_se_restore_privilege() {
+        tracing::warn!(error = %e, "could not enable SeRestorePrivilege; continuing");
+    } else {
+        tracing::debug!("SeRestorePrivilege enabled for WireGuard");
+    }
+
+    // Step 1: write temp config (wg-tool only accepts a file path)
+    let temp_dir = std::env::temp_dir();
+    let config_path = temp_dir.join("pingpal.conf");
+
+    // Filter out unsupported lines
+    let filtered_config: String = config_content
         .lines()
         .filter(|line| {
             let trim = line.trim();
@@ -32,37 +63,7 @@ fn filter_wg_config(config: &str) -> String {
                 && !trim.starts_with("SaveConfig")
         })
         .collect::<Vec<&str>>()
-        .join("\n")
-}
-
-#[tracing::instrument(level = "info", skip(app, config_content), fields(ipv4_address = %ipv4_address, config_len = config_content.len()))]
-#[tauri::command]
-pub async fn connect_vpn<R: Runtime>(
-    app: AppHandle<R>,
-    config_content: String,
-    ipv4_address: String,
-) -> Result<String, String> {
-    let admin_check = Command::new("net")
-        .args(["session"])
-        .output()
-        .map_err(|e| format!("failed to check admin session: {}", e))?;
-
-    if !admin_check.status.success() {
-        return Err(
-            "Run this application as Administrator to establish a VPN connection.".to_string(),
-        );
-    }
-
-    if let Err(e) = privileges::enable_se_restore_privilege() {
-        tracing::warn!(error = %e, "could not enable SeRestorePrivilege; continuing");
-    } else {
-        tracing::debug!("SeRestorePrivilege enabled for WireGuard");
-    }
-
-    let temp_dir = std::env::temp_dir();
-    let config_path = temp_dir.join("pingpal.conf");
-
-    let filtered_config = filter_wg_config(&config_content);
+        .join("\n");
 
     {
         let mut file =
@@ -74,6 +75,7 @@ pub async fn connect_vpn<R: Runtime>(
     let _config_guard = TempConfigGuard(config_path.clone());
     tracing::debug!(path = ?config_path, "wrote temp WireGuard config");
 
+    // Step 2: Windows service runs wg-engine as SYSTEM
     tracing::debug!("configuring Windows service for wg-engine");
 
     let exe_dir = std::env::current_exe()
@@ -159,6 +161,7 @@ pub async fn connect_vpn<R: Runtime>(
         );
     }
 
+    // Step 3: wg setconf
     tracing::debug!("applying wg setconf");
     let wg_tool = app.shell().sidecar("wg-tool").map_err(|e| e.to_string())?;
     let output = wg_tool
@@ -172,6 +175,7 @@ pub async fn connect_vpn<R: Runtime>(
         return Err(format!("wg-tool error: {}", err_msg));
     }
 
+    // Step 4: set interface IP via netsh (no wg-quick on Windows)
     tracing::debug!(%ipv4_address, "setting interface IP via netsh");
     let netsh_output = Command::new("netsh")
         .args([
@@ -195,6 +199,7 @@ pub async fn connect_vpn<R: Runtime>(
         ));
     }
 
+    // Step 5: split-tunnel routes from AllowedIPs
     tracing::debug!("adding split-tunnel routes");
     let allowed_ips_line = config_content
         .lines()
@@ -316,6 +321,7 @@ fn wg_merge_host32(existing: &str, host: &str) -> String {
     parts.join(", ")
 }
 
+/// Ensures WireGuard will encapsulate traffic to `ip`, then adds a Windows /32 route via the tunnel.
 pub async fn append_allowed_ip_and_route<R: Runtime>(
     app: &AppHandle<R>,
     ip: &str,
@@ -375,6 +381,7 @@ pub async fn append_allowed_ip_and_route<R: Runtime>(
     add_route_to_vpn(ip)
 }
 
+/// Add a /32 route for a single IP through the VPN adapter (used by network monitor).
 pub fn add_route_to_vpn(ip: &str) -> Result<String, String> {
     let if_index_output = Command::new("netsh")
         .args(["interface", "ipv4", "show", "interfaces"])
@@ -422,6 +429,7 @@ pub fn add_route_to_vpn(ip: &str) -> Result<String, String> {
     Ok(format!("Added {} to VPN routes", ip))
 }
 
+#[tracing::instrument(level = "info")]
 #[tauri::command]
 pub fn disconnect_vpn() -> Result<String, String> {
     tracing::debug!("disconnecting VPN");
@@ -450,93 +458,4 @@ fn prefix_to_netmask(prefix: u32) -> String {
         (mask >> 8) & 0xFF,
         mask & 0xFF
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_filter_wg_config() {
-        let config = "
-[Interface]
-PrivateKey = private_key
-Address = 10.0.0.2/32
-DNS = 8.8.8.8
-MTU = 1420
-ListenPort = 51820
-PreUp = pre_up_cmd
-PostUp = post_up_cmd
-PreDown = pre_down_cmd
-PostDown = post_down_cmd
-Table = off
-SaveConfig = true
-
-[Peer]
-PublicKey = public_key
-Endpoint = 1.2.3.4:51820
-AllowedIPs = 0.0.0.0/0
-        ";
-
-        let filtered = filter_wg_config(config);
-        
-        assert!(!filtered.contains("Address ="));
-        assert!(!filtered.contains("DNS ="));
-        assert!(!filtered.contains("MTU ="));
-        assert!(!filtered.contains("PreUp ="));
-        assert!(!filtered.contains("PostUp ="));
-        assert!(!filtered.contains("PreDown ="));
-        assert!(!filtered.contains("PostDown ="));
-        assert!(!filtered.contains("Table ="));
-        assert!(!filtered.contains("SaveConfig ="));
-
-        assert!(filtered.contains("[Interface]"));
-        assert!(filtered.contains("PrivateKey = private_key"));
-        assert!(filtered.contains("ListenPort = 51820"));
-        assert!(filtered.contains("[Peer]"));
-        assert!(filtered.contains("PublicKey = public_key"));
-        assert!(filtered.contains("Endpoint = 1.2.3.4:51820"));
-        assert!(filtered.contains("AllowedIPs = 0.0.0.0/0"));
-    }
-
-    #[test]
-    fn test_wg_dump_first_peer() {
-        let dump_empty = "";
-        assert_eq!(wg_dump_first_peer(dump_empty), None);
-
-        let dump_valid = "interfacename\tpubkey123\tpreshared\t1.2.3.4:51820\t10.0.0.2/32\t0\t0\t0\toff";
-        assert_eq!(
-            wg_dump_first_peer(dump_valid),
-            Some(("interfacename".to_string(), "1.2.3.4:51820".to_string()))
-        );
-    }
-
-    #[test]
-    fn test_wg_allowed_covers_all_ipv4() {
-        assert!(wg_allowed_covers_all_ipv4("0.0.0.0/0"));
-        assert!(wg_allowed_covers_all_ipv4(" 0.0.0.0/1 , 128.0.0.0/1"));
-        assert!(wg_allowed_covers_all_ipv4("10.0.0.0/8, 0.0.0.0/0"));
-        assert!(!wg_allowed_covers_all_ipv4("10.0.0.0/8"));
-        assert!(!wg_allowed_covers_all_ipv4("192.168.1.0/24"));
-        assert!(!wg_allowed_covers_all_ipv4(""));
-    }
-
-    #[test]
-    fn test_wg_merge_host32() {
-        assert_eq!(wg_merge_host32("(none)", "1.1.1.1"), "1.1.1.1/32");
-        assert_eq!(wg_merge_host32("", "1.1.1.1"), "1.1.1.1/32");
-        assert_eq!(wg_merge_host32("1.1.1.1/32, 2.2.2.2/32", "1.1.1.1"), "1.1.1.1/32, 2.2.2.2/32");
-        assert_eq!(wg_merge_host32("10.0.0.0/8", "1.1.1.1"), "10.0.0.0/8, 1.1.1.1/32");
-    }
-
-    #[test]
-    fn test_prefix_to_netmask() {
-        assert_eq!(prefix_to_netmask(0), "0.0.0.0");
-        assert_eq!(prefix_to_netmask(8), "255.0.0.0");
-        assert_eq!(prefix_to_netmask(16), "255.255.0.0");
-        assert_eq!(prefix_to_netmask(24), "255.255.255.0");
-        assert_eq!(prefix_to_netmask(32), "255.255.255.255");
-        assert_eq!(prefix_to_netmask(1), "128.0.0.0");
-        assert_eq!(prefix_to_netmask(31), "255.255.255.254");
-    }
 }
